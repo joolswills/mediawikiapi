@@ -27,7 +27,7 @@ sub new {
 }
 
 sub api {
-  my ($self,$query,$keyattr) = @_;
+  my ($self,$query) = @_;
   my $apiurl=$self->{config}->{api_url};
 
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.\n") unless $self->{config}->{api_url};
@@ -46,11 +46,9 @@ sub api {
 
 sub get_page {
   my ($self, $page, $rvprop) = @_;
-  my $query = ($self->api( { action => 'query', prop => 'revisions', titles => $page, rvprop => $rvprop }, 'rev' ));
-  return $query->{query}->{pages}->{page}->{revisions}->{rev}->{content};
+  my $query = ($self->api( { action => 'query', prop => 'revisions', titles => $page, rvprop => $rvprop } ));
+  return $query->{query}->{pages}->{page}->{revisions}->{rev};
 }
-
-
 
 sub _error {
   my ($mw, $code, $desc) = @_;
