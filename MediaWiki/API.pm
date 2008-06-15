@@ -35,8 +35,8 @@ sub new {
 }
 
 sub api {
-  my ($self,$query) = @_;
-  my $apiurl=$self->{config}->{api_url};
+  my ($self, $query) = @_;
+  my $apiurl = $self->{config}->{api_url};
 
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.\n") unless $self->{config}->{api_url};
 
@@ -56,17 +56,17 @@ sub api {
 }
 
 sub login {
-  my ($self,$query) = @_;
+  my ($self, $query) = @_;
   $query->{action} = 'login';
   # attempt to login, and return undef if there was an api failure
   return undef unless ( my $ref = $self->api( $query ) );
 
   # reassign hash reference to the login section
-  $ref=$ref->{login};
-  return $self->_error( ERR_LOGIN, 'Login Failure: ' . $ref->{result} ) unless ( $ref->{result} eq 'Success' );
+  my $login = $ref->{login};
+  return $self->_error( ERR_LOGIN, 'Login Failure: ' . $login->{result} ) unless ( $login->{result} eq 'Success' );
 
   # everything was ok so return the reference
-  return $ref;
+  return $login;
 }
 
 sub logout {
@@ -79,13 +79,12 @@ sub logout {
 
 sub edit {
   my ($self, $query) = @_;
-  my $ref;
 
   # gets and sets a token for the specific action (different tokens for different edit actions such as rollback/delete etc)
-  return undef unless $self->_get_set_tokens( $query );
+  return undef unless ( $self->_get_set_tokens( $query ) );
 
   # do the edit
-  return undef unless ( $ref = $self->api( $query ) );
+  return undef unless ( my $ref = $self->api( $query ) );
 
   return $ref;
 }
@@ -93,8 +92,8 @@ sub edit {
 # gets a token for a specified parameter and sets it in the query for the call
 sub _get_set_tokens {
   my ($self, $query) = @_;
-  my $action = $query->{action};
   my ($prop, $title, $token);
+  my $action = $query->{action};
 
   # check if we have a cached token.
   if ( exists( $self->{config}->{tokens}->{$action} ) ) {
@@ -122,7 +121,7 @@ sub _get_set_tokens {
 
   return undef unless ( my $ref = $self->api( { action => 'query', prop => 'info|revisions', $token => $action, titles => $title } ) );
 
-  my $page=$ref->{query}->{pages}->{page};
+  my $page = $ref->{query}->{pages}->{page};
   if ( $action eq 'rollback' ) {
     $query->{token} = $page->{revisions}->{rev}->{$action.'token'};
     $query->{user}  = $page->{revisions}->{rev}->{user};
@@ -130,8 +129,8 @@ sub _get_set_tokens {
     $query->{token} = $page->{$action.'token'};
   }
 
+  # need timestamp of last revision for edits to avoid edit conflicts
   if ( $action eq 'edit' ) {
-    # need timestamp of last revision for edits to avoid edit conflicts
     $query->{basetimestamp} = $page->{revisions}->{rev}->{timestamp};
   }
 
