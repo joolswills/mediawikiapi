@@ -4,15 +4,27 @@ use strict;
 use MediaWiki::API;
 use Data::Dumper;
 
+binmode STDOUT, ":utf8";
 my $mw = MediaWiki::API->new();
-$mw->{config}->{api_url} = 'http://testwiki.exotica.org.uk/mediawiki/api.php';
+#$mw->{config}->{api_url} = 'http://testwiki.exotica.org.uk/mediawiki/api.php';
+$mw->{config}->{api_url} = 'http://en.wikipedia.org/w/api.php';
 $mw->{config}->{bot}=1;
+$mw->{config}->{on_error} = \& on_error;
 
-if (!$mw->login( {lgname => 'Testbot', lgpassword => 'test' } ) ) {
-  print $mw->{error_details}."\n";
-}
+#$mw->login( {lgname => 'Testbot', lgpassword => 'test' } );
 
+# site info
+print Dumper $mw->api( { action => 'query', meta => 'siteinfo' } );
 
+print Dumper $mw->api( { action => 'query', meta => 'userinfo', uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
+
+my $query = $mw->api( { action => 'query', titles => 'Albert Einstein', prop => 'langlinks' } );
+#print Dumper $query;
+my @ll = @{ $query->{query}->{pages}->{page}->{langlinks}->{ll} };
+
+foreach (@ll) {
+ print "$_->{content} \n";
+ }
 #print Dumper $mw->list ( { action => 'query', list => 'allpages', aplimit=>5 }, 10 );
 #print Dumper $mw->list ( { action => 'query', list => 'categorymembers', cmtitle => 'Category:Arcade Conversions' }, 20 );
 
@@ -34,3 +46,9 @@ if (!$mw->login( {lgname => 'Testbot', lgpassword => 'test' } ) ) {
 
 #my $page=$mw->get_page('Main Page','content');
 #print $page->{content};
+
+sub on_error {
+  print "Error code: " . $mw->{error} . "\n";
+  print $mw->{error_details}."\n";
+  die;
+}

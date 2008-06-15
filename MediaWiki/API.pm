@@ -191,7 +191,7 @@ sub _error {
   $mw->{error} = $code;
   $mw->{error_details} = $desc;
 
-  $mw->{on_error}->() if ($mw->{on_error});
+  $mw->{config}->{on_error}->() if ($mw->{config}->{on_error});
 
   return undef;
 }
