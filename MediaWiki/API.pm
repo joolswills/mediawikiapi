@@ -8,11 +8,14 @@ use LWP::UserAgent;
 use XML::Simple qw(:strict);
 use Data::Dumper;
 
-sub ERR_NO_ERROR { 0 }
-sub ERR_CONFIG { 1 }
-sub ERR_HTTP { 2 }
-sub ERR_API { 3 }
-sub ERR_LOGIN { 4 }
+use constant {
+  ERR_NO_ERROR => 0,
+  ERR_CONFIG   => 1,
+  ERR_HTTP     => 2,
+  ERR_API      => 3,
+  ERR_LOGIN    => 4,
+  ERR_EDIT     => 5,
+};
 
 sub new {
 
@@ -52,13 +55,35 @@ sub api {
 sub login {
   my ($self,$query) = @_;
   $query->{action} = 'login';
-  if ( my $ref = $self->api( $query ) ) {
-    $ref=$ref->{login};
-    return $self->_error( ERR_LOGIN, 'Login Failure: ' . $ref->{result} . ' - ' . $ref->{details} ) if ( $ref->{result} ne 'Success' );
-    return $ref;
-  } else {
-    return undef;
-  }
+  # attempt to login, and return undef if there was an api failure
+  return undef unless ( my $ref = $self->api( $query ) );
+
+  # reassign hash reference to the login section
+  $ref=$ref->{login};
+  return $self->_error( ERR_LOGIN, 'Login Failure: ' . $ref->{result} ) unless ( $ref->{result} eq 'Success' );
+
+  # everything was ok so return the reference
+  return $ref;
+}
+
+
+
+
+sub edit {
+  my ($self,$query) = @_;
+  return undef unless my $ref = $self->api( { action => 'query', prop => 'info|revisions', intoken => 'edit', titles => $query->{title} } );
+
+  # reassign hash reference to the page section
+  $ref=$ref->{query}->{pages}->{page};
+
+  return $self->_error( ERR_EDIT, 'Unable to get an edit token.' ) unless ( exists ( $ref->{edittoken} ) );
+
+  $query->{action} = 'edit';
+  $query->{token} = $ref->{edittoken};
+
+  return undef unless $ref = $self->api( $query );
+
+  return $ref;
 }
 
 # parameters:
@@ -99,8 +124,8 @@ sub list {
 
 sub get_page {
   my ($self, $page, $rvprop) = @_;
-  my $query = $self->api( { action => 'query', prop => 'revisions', titles => $page, rvprop => $rvprop } );
-  return $query->{query}->{pages}->{page}->{revisions}->{rev};
+  return undef unless ( my $ref = $self->api( { action => 'query', prop => 'revisions', titles => $page, rvprop => $rvprop } ) );
+  return $ref->{query}->{pages}->{page}->{revisions}->{rev};
 }
 
 sub _error {
