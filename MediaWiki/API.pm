@@ -8,7 +8,7 @@ use LWP::UserAgent;
 use XML::Simple qw(:strict);
 use Data::Dumper;
 
-our($VERSION) = "0.2";
+our($VERSION) = "0.1";
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -50,7 +50,7 @@ sub api {
 
   my $ref = XML::Simple->new()->XMLin($response->content, ForceArray => 0, KeyAttr => [ ] );
 
-  return $self->_error(ERR_API,$ref->{error}->{code}) if exists ( $ref->{error} );
+  return $self->_error(ERR_API,$ref->{error}->{info}) if exists ( $ref->{error} );
 
   return $ref;
 }
@@ -71,24 +71,73 @@ sub login {
 
 sub logout {
   my ($self) = @_;
-  $self->{ua}->{cookie_jar}=undef;
+  # clear login cookies
+  $self->{ua}->{cookie_jar} = undef;
+  # clear cached tokens
+  $self->{config}->{tokens} = undef;
 }
 
 sub edit {
-  my ($self,$query) = @_;
-  return undef unless my $ref = $self->api( { action => 'query', prop => 'info|revisions', intoken => 'edit', titles => $query->{title} } );
+  my ($self, $query) = @_;
+  my $ref;
 
-  # reassign hash reference to the page section
-  $ref=$ref->{query}->{pages}->{page};
+  # gets and sets a token for the specific action (different tokens for different edit actions such as rollback/delete etc)
+  return undef unless $self->_get_set_tokens( $query );
 
-  return $self->_error( ERR_EDIT, 'Unable to get an edit token.' ) unless ( exists ( $ref->{edittoken} ) );
-
-  $query->{action} = 'edit';
-  $query->{token} = $ref->{edittoken};
-
+  # do the edit
   return undef unless ( $ref = $self->api( $query ) );
 
   return $ref;
+}
+
+# gets a token for a specified parameter and sets it in the query for the call
+sub _get_set_tokens {
+  my ($self, $query) = @_;
+  my $action = $query->{action};
+  my ($prop, $title, $token);
+
+  # check if we have a cached token.
+  if ( exists( $self->{config}->{tokens}->{$action} ) ) {
+    $query->{token} = $self->{config}->{tokens}->{$action};
+    return 1;
+  }
+
+  # set the properties we want to extract based on the action
+  # for edit we want to get the datestamp of the last revision also to avoid collisions
+  $prop = 'info|revisions' if ( $action eq 'edit' );
+  $prop = 'info' if ( $action eq 'move' or $action eq 'delete' );
+  $prop = 'revisions' if ( $query->{action} eq 'rollback' );
+
+  if ( $action eq 'move' ) {
+    $title = $query->{from};
+  } else {
+    $title = $query->{title};
+  }
+
+  if ( $action eq 'rollback' ) {
+    $token = 'rvtoken';
+  } else {
+    $token = 'intoken';
+  }
+
+  return undef unless ( my $ref = $self->api( { action => 'query', prop => 'info|revisions', $token => $action, titles => $title } ) );
+
+  my $page=$ref->{query}->{pages}->{page};
+  if ( $action eq 'rollback' ) {
+    $query->{token} = $page->{revisions}->{rev}->{$action.'token'};
+    $query->{user}  = $page->{revisions}->{rev}->{user};
+  } else {
+    $query->{token} = $page->{$action.'token'};
+  }
+
+  return $self->_error( ERR_EDIT, 'Unable to get an edit token.' ) unless ( defined ( $query->{token} ) );
+
+  # cache the token. rollback tokens are specific for the page name and last edited user so can not be cached.
+  if ( $action ne 'rollback' ) {
+    $self->{config}->{tokens}->{$action} = $query->{token};
+  }
+
+  return 1;
 }
 
 # parameters:
