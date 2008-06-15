@@ -8,6 +8,8 @@ use LWP::UserAgent;
 use XML::Simple qw(:strict);
 use Data::Dumper;
 
+our($VERSION) = "0.2";
+
 use constant {
   ERR_NO_ERROR => 0,
   ERR_CONFIG   => 1,
@@ -24,6 +26,7 @@ sub new {
 
   my $ua = LWP::UserAgent->new();
   $ua->cookie_jar({});
+  $ua->agent(__PACKAGE__ . "/$VERSION");
 
   $self->{ua} = $ua;
 
@@ -66,8 +69,10 @@ sub login {
   return $ref;
 }
 
-
-
+sub logout {
+  my ($self) = @_;
+  $self->{ua}->{cookie_jar}=undef;
+}
 
 sub edit {
   my ($self,$query) = @_;
@@ -81,7 +86,7 @@ sub edit {
   $query->{action} = 'edit';
   $query->{token} = $ref->{edittoken};
 
-  return undef unless $ref = $self->api( $query );
+  return undef unless ( $ref = $self->api( $query ) );
 
   return $ref;
 }
@@ -98,7 +103,7 @@ sub list {
 
   my $do_continue = 0;
   do {
-    $ref = $self->api( $query );
+    return undef unless ( $ref = $self->api( $query ) );
 
     # check if we have yet the key which contains the array of hashrefs for the ref
     # if not, then get it.

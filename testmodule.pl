@@ -16,7 +16,10 @@ if (!$mw->login( {lgname => 'Testbot', lgpassword => 'test' } ) ) {
 if ( !$mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } )  ) {
   print $mw->{error_details}."\n";
 }
-
+$mw->logout();
+if ( !$mw->edit( { action => 'edit', title => 'Main Page', text => "hello world2\n" } )  ) {
+  print $mw->{error_details}."\n";
+}
 
 #my $page=$mw->get_page('Main Page','content');
 #print $page->{content};
