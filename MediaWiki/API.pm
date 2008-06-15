@@ -8,7 +8,7 @@ use LWP::UserAgent;
 use XML::Simple qw(:strict);
 use Data::Dumper;
 
-our($VERSION) = "0.1";
+our($VERSION) = "0.2";
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -130,6 +130,11 @@ sub _get_set_tokens {
     $query->{token} = $page->{$action.'token'};
   }
 
+  if ( $action eq 'edit' ) {
+    # need timestamp of last revision for edits to avoid edit conflicts
+    $query->{basetimestamp} = $page->{revisions}->{rev}->{timestamp};
+  }
+
   return $self->_error( ERR_EDIT, 'Unable to get an edit token.' ) unless ( defined ( $query->{token} ) );
 
   # cache the token. rollback tokens are specific for the page name and last edited user so can not be cached.
@@ -193,3 +198,14 @@ sub _error {
 }
 
 1;
+
+__END__
+
+=head1 AUTHOR
+
+Jools 'BuZz' Smyth <buzz@exotica.org.uk>
+http://www.exotica.org.uk
+
+=head1 COPYRIGHT
+
+Copyright (C) 2008 Jools Smyth
