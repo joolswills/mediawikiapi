@@ -17,6 +17,7 @@ use constant {
   ERR_API      => 3,
   ERR_LOGIN    => 4,
   ERR_EDIT     => 5,
+  ERR_UPLOAD   => 6,
 };
 
 sub new {
@@ -36,15 +37,14 @@ sub new {
 
 sub api {
   my ($self, $query) = @_;
-  my $apiurl = $self->{config}->{api_url};
 
-  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.\n") unless $self->{config}->{api_url};
+  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.") unless $self->{config}->{api_url};
 
   $query->{format}='xml';
 
-  my $response = $self->{ua}->post( $apiurl, $query );
+  my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
 
-  return $self->_error(ERR_HTTP,"An HTTP failure occurred.\n") unless $response->is_success;
+  return $self->_error(ERR_HTTP,"An HTTP failure occurred.") unless $response->is_success;
 
   #print Dumper ($response->content);
 
@@ -102,7 +102,7 @@ sub _get_set_tokens {
   }
 
   # set the properties we want to extract based on the action
-  # for edit we want to get the datestamp of the last revision also to avoid collisions
+  # for edit we want to get the datestamp of the last revision also to avoid edit conflicts
   $prop = 'info|revisions' if ( $action eq 'edit' );
   $prop = 'info' if ( $action eq 'move' or $action eq 'delete' );
   $prop = 'revisions' if ( $query->{action} eq 'rollback' );
@@ -134,7 +134,7 @@ sub _get_set_tokens {
     $query->{basetimestamp} = $page->{revisions}->{rev}->{timestamp};
   }
 
-  return $self->_error( ERR_EDIT, 'Unable to get an edit token.' ) unless ( defined ( $query->{token} ) );
+  return $self->_error( ERR_EDIT, 'Unable to get an edit token ($page).' ) unless ( defined ( $query->{token} ) );
 
   # cache the token. rollback tokens are specific for the page name and last edited user so can not be cached.
   if ( $action ne 'rollback' ) {
@@ -175,9 +175,32 @@ sub list {
     }
     push @results, @{$ref->{query}->{$list}->{$array_key}}
 
-  } until ( ! $do_continue || ($count>=$max && $max != 0) );
+  } until ( ! $do_continue || ($count >= $max && $max != 0) );
 
   return @results;
+}
+
+sub upload {
+  my ($self, $title, $data, $summary) = @_;
+
+  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki Special:Upload page.") unless $self->{config}->{upload_url};
+
+  my $response = $self->{ua}->post(
+    $self->{config}->{upload_url},
+    Content_Type => 'multipart/form-data',
+    Content => [
+      wpUploadFile => [ undef, $title, Content => $data ],
+      wpSourceType => 'file',
+      wpDestFile => $title,
+      wpUploadDescription => $summary,
+      wpUpload => 'Upload file',
+      wpIgnoreWarning => 'true', ]
+  );
+
+  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $title") unless $self->{config}->{upload_url};
+
+  return 1;
+
 }
 
 sub get_page {
