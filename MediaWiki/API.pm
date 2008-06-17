@@ -6,6 +6,8 @@ use strict;
 #use LWP::Debug qw(+);
 use LWP::UserAgent;
 use XML::Simple qw(:strict);
+use HTML::Entities;
+
 use Data::Dumper;
 
 our($VERSION) = "0.2";
@@ -50,7 +52,7 @@ sub api {
 
   my $ref = XML::Simple->new()->XMLin($response->content, ForceArray => 0, KeyAttr => [ ] );
 
-  return $self->_error(ERR_API,$ref->{error}->{info}) if exists ( $ref->{error} );
+  return $self->_error(ERR_API,$ref->{error}->{code} . ": " . decode_entities($ref->{error}->{info}) ) if exists ( $ref->{error} );
 
   return $ref;
 }
@@ -197,8 +199,7 @@ sub upload {
       wpIgnoreWarning => 'true', ]
   );
 
-  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $title") unless $self->{config}->{upload_url};
-
+  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $title") unless ( $response->code == 302 );
   return 1;
 
 }
