@@ -223,20 +223,32 @@ sub edit {
 A helper function for getting the most recent page contents (and other metadata) for a page. It calls the lower level api function with a revisions query to get the most recent revision.
 
   # get some page contents
-  my $page = $mw->get_page('Main Page','content');
+  my $page = $mw->get_page( { title => 'Main Page' } );
   print $page->{content};
 
 Returns a hashref with the following keys or undef on an error.
 
-ids|flags|timestamp|user|comment|size|content
+=over
+
+=item * revid - revision id of page
+
+=item * timestamp - timestamp of revision
+
+=item * content - contents of page
+
+=item * user - user who made revision
+
+=item * size - size of page in bytes
+
+=back
 
 Full information about these can be read on (http://www.mediawiki.org/wiki/API:Query_-_Properties#revisions_.2F_rv)
 
 =cut
 
 sub get_page {
-  my ($self, $title) = @_;
-  return undef unless ( my $ref = $self->api( { action => 'query', prop => 'revisions', titles => $title, rvprop => 'ids|flags|timestamp|user|comment|size|content' } ) );
+  my ($self, $params) = @_;
+  return undef unless ( my $ref = $self->api( { action => 'query', prop => 'revisions', titles => $params->{title}, rvprop => 'ids|flags|timestamp|user|comment|size|content' } ) );
   return $ref->{query}->{pages}->{page}->{revisions}->{rev};
 }
 
