@@ -26,11 +26,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
-our $VERSION  = "0.02";
+our $VERSION  = "0.03";
 
 =head1 SYNOPSIS
 
@@ -204,6 +204,9 @@ sub list {
   my $do_continue = 0;
   do {
     return undef unless ( $ref = $self->api( $query ) );
+
+    # return (empty) array if results are empty
+    return @results unless ( %{$ref->{query}->{$list}} );
 
     # check if we have yet the key which contains the array of hashrefs for the ref
     # if not, then get it.
