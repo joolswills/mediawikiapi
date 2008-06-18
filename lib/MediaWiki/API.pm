@@ -34,34 +34,27 @@ our $VERSION  = "0.03";
 
 =head1 SYNOPSIS
 
-use MediaWiki::API;
+  use MediaWiki::API;
 
-my $mw = MediaWiki::API->new();
-$mw->{config}->{api_url} = 'http://en.wikipedia.org/w/api.php';
+  my $mw = MediaWiki::API->new();
+  $mw->{config}->{api_url} = 'http://en.wikipedia.org/w/api.php';
 
-# log in to the wiki
-$mw->login( {lgname => 'test', lgpassword => 'test' } );
+  # log in to the wiki
+  $mw->login( {lgname => 'test', lgpassword => 'test' } );
 
-my $articles=$mw->list ( { action => 'query', list => 'categorymembers', cmtitle => 'http://en.wikipedia.org/wiki/Category:Perl', aplimit=>'max' } );
+  my $articles=$mw->list ( { action => 'query', list => 'categorymembers', cmtitle => 'http://en.wikipedia.org/wiki/Category:Perl', aplimit=>'max' } );
 
-# user info
-print Dumper $mw->api( { action => 'query', meta => 'userinfo', uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
+  # user info
+  print Dumper $mw->api( { action => 'query', meta => 'userinfo', uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
 
     ...
 
-=head1 EXPORT
-
-A list of functions that can be exported.  You can delete this section
-if you don't export anything, such as for a purely object-oriented module.
 
 =head1 FUNCTIONS
 
-=head2 function1
+=head2 MediaWiki::API->new( [ $config_hash ] )
 
-=cut
-
-
-=head2 function2
+Returns a MediaWiki API object. You can pass a config as a hashref when calling new, or set the configuration later.
 
 =cut
 
@@ -79,6 +72,43 @@ sub new {
   bless ($self, $class);
   return $self;
 }
+
+=head2 MediaWiki::API->login( $query_hash )
+
+Logs in to a MediaWiki. Parameters are those used by the MediaWiki API (http://www.mediawiki.org/wiki/API:Login). Returns a hash with some login details, or undef on login failure. Errors are stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}
+
+  my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
+
+  #log in to the wiki
+  $mw->login( {lgname => 'username', lgpassword => 'password' } );
+
+=cut
+
+sub login {
+  my ($self, $query) = @_;
+  $query->{action} = 'login';
+  # attempt to login, and return undef if there was an api failure
+  return undef unless ( my $ref = $self->api( $query ) );
+
+  # reassign hash reference to the login section
+  my $login = $ref->{login};
+  return $self->_error( ERR_LOGIN, 'Login Failure: ' . $login->{result} ) unless ( $login->{result} eq 'Success' );
+
+  # everything was ok so return the reference
+  return $login;
+}
+
+=head2 MediaWiki::API->api( $query_hash )
+
+Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the
+MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
+
+  # get the name of the site
+  if ( my $ref = $mw->api( { action => 'query', meta => 'siteinfo' } ) ) {
+    print $ref->{query}->{general}->{sitename};
+  }
+
+=cut
 
 sub api {
   my ($self, $query) = @_;
@@ -100,19 +130,12 @@ sub api {
   return $ref;
 }
 
-sub login {
-  my ($self, $query) = @_;
-  $query->{action} = 'login';
-  # attempt to login, and return undef if there was an api failure
-  return undef unless ( my $ref = $self->api( $query ) );
 
-  # reassign hash reference to the login section
-  my $login = $ref->{login};
-  return $self->_error( ERR_LOGIN, 'Login Failure: ' . $login->{result} ) unless ( $login->{result} eq 'Success' );
+=head2 MediaWiki::API->logout()
 
-  # everything was ok so return the reference
-  return $login;
-}
+Log the current user out and clear associated cookies and edit tokens.
+
+=cut
 
 sub logout {
   my ($self) = @_;
@@ -121,6 +144,42 @@ sub logout {
   # clear cached tokens
   $self->{config}->{tokens} = undef;
 }
+
+=head2 MediaWiki::API->edit( $query_hash )
+
+A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Changing_wiki_content). Currently only
+
+=over
+
+=item * Create/Edit pages
+
+=item * Move pages
+
+=item * Rollback
+
+=item * Delete pages
+
+=back
+
+are supported via this call. Use this call to edit pages without having to worry about getting an edit token from the API first. The function will cache edit tokens to speed up future edits (Except for rollback edits, which are not cachable).
+
+Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
+
+  # edit a page
+  if ( ! $mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } )  ) {
+    print $mw->{error}->{code} . ': ' . $mw->{error}->{details}."\n";
+  }
+
+  # delete a page
+  $mw->edit( { action => 'delete', title => 'DeleteMe' };
+
+  # move a page
+  $mw->edit( { action => 'move', from => 'MoveMe', to => 'MoveMe2' };
+
+  # rollback a page edit
+  $mw->edit( { action => 'rollback', title => 'Sandbox' };
+
+=cut
 
 sub edit {
   my ($self, $query) = @_;
@@ -189,57 +248,60 @@ sub _get_set_tokens {
   return 1;
 }
 
+=head2 list
+
+instructions go here
+
+=cut
+
 # parameters:
 # mediawiki api parameters for list functions (http://www.mediawiki.org/wiki/API:Query_-_Lists) as hashref
 # number of items to return or 0 for all
 sub list {
-  my ($self, $query, $max, $hook) = @_;
+  my ($self, $query, $options) = @_;
   my ($ref, @results);
-  my ($cont_key, $cont_value, $array_key, $count);
+  my ($cont_key, $cont_value, $array_key);
 
   my $list = $query->{list};
 
-  $max = 0 if ( ! defined $max );
+  $options->{max} = 0 if ( !defined $options->{max} );
 
-  my $do_continue = 0;
+  my $continue = 0;
+  my $count = 0;
   do {
     return undef unless ( $ref = $self->api( $query ) );
 
     # return (empty) array if results are empty
     return @results unless ( %{$ref->{query}->{$list}} );
 
+    # check if there are more results to be had
+    if ( exists( $ref->{'query-continue'} ) ) {
+      # get query-continue hashref and extract key and value (key will be used as from parameter to continue where we left off)
+      ($cont_key, $cont_value) = each( %{ $ref->{'query-continue'}->{$list} } );
+      $query->{$cont_key} = $cont_value;
+      $continue = 1;
+    } else {
+      $continue = 0;
+    }
+
     # check if we have yet the key which contains the array of hashrefs for the ref
     # if not, then get it.
     if ( ! defined( $array_key ) ) {
       ($array_key,)=each( %{ $ref->{query}->{$list} } );
     }
-    $count +=  scalar @{$ref->{query}->{$list}->{$array_key}};
 
-    # check if there are more ref to be had
-    if ( exists( $ref->{'query-continue'} ) ) {
-      # get query-continue hashref and extract key and value (key will be used as from parameter to continue where we left off)
-      ($cont_key, $cont_value) = each( %{ $ref->{'query-continue'}->{$list} } );
-      $query->{$cont_key} = $cont_value;
-      $do_continue = 1;
-    } else {
-      $do_continue = 0;
-    }
-
-    if ( defined $hook ) {
-      &$hook(\@{$ref->{query}->{$list}->{$array_key}});
+    if ( defined $options->{hook} ) {
+      $options->{hook}(\@{$ref->{query}->{$list}->{$array_key}});
     } else {
       push @results, @{$ref->{query}->{$list}->{$array_key}};
     }
 
-  } until ( ! $do_continue || ($count >= $max && $max != 0) );
+    $count += 1;
 
-  if ( ! defined $hook ) {
-    # trim @results down to our $max
-    delete @results[$max..$count] if ( $count > $max && $max != 0 );
-    return @results;
-  } else {
-    return 1;
-  }
+  } until ( ! $continue || $count >= $options->{max} && $options->{max} != 0 );
+
+  return 1 if ( defined $options->{max} ); 
+  return @results;
 
 }
 
@@ -273,8 +335,8 @@ sub get_page {
 
 sub _error {
   my ($mw, $code, $desc) = @_;
-  $mw->{error} = $code;
-  $mw->{error_details} = $desc;
+  $mw->{error}->{code} = $code;
+  $mw->{error}->{details} = $desc;
 
   $mw->{config}->{on_error}->() if ($mw->{config}->{on_error});
 
@@ -292,11 +354,7 @@ Jools Smyth, C<< <buzz at exotica.org.uk> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-mediawiki-api at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=MediaWiki-API>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
-
-
-
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=MediaWiki-API>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
