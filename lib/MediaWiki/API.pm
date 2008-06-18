@@ -3,9 +3,12 @@ package MediaWiki::API;
 use warnings;
 use strict;
 
+# our required modules
+
 use LWP::UserAgent;
 use XML::Simple qw(:strict);
 use HTML::Entities;
+#use Data::Dumper;
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -19,25 +22,31 @@ use constant {
 
 =head1 NAME
 
-MediaWiki::API - The great new MediaWiki::API!
+MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.mediawiki.org/wiki/API)
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION  = "0.2";
+our $VERSION  = "0.02";
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+use MediaWiki::API;
 
-Perhaps a little code snippet.
+my $mw = MediaWiki::API->new();
+$mw->{config}->{api_url} = 'http://en.wikipedia.org/w/api.php';
 
-    use MediaWiki::API;
+# log in to the wiki
+$mw->login( {lgname => 'test', lgpassword => 'test' } );
 
-    my $foo = MediaWiki::API->new();
+my $articles=$mw->list ( { action => 'query', list => 'categorymembers', cmtitle => 'http://en.wikipedia.org/wiki/Category:Perl', aplimit=>'max' } );
+
+# user info
+print Dumper $mw->api( { action => 'query', meta => 'userinfo', uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
+
     ...
 
 =head1 EXPORT
@@ -184,11 +193,13 @@ sub _get_set_tokens {
 # mediawiki api parameters for list functions (http://www.mediawiki.org/wiki/API:Query_-_Lists) as hashref
 # number of items to return or 0 for all
 sub list {
-  my ($self, $query, $max) = @_;
+  my ($self, $query, $max, $hook) = @_;
   my ($ref, @results);
   my ($cont_key, $cont_value, $array_key, $count);
 
   my $list = $query->{list};
+
+  $max = 0 if ( ! defined $max );
 
   my $do_continue = 0;
   do {
@@ -196,10 +207,9 @@ sub list {
 
     # check if we have yet the key which contains the array of hashrefs for the ref
     # if not, then get it.
-    if ( ! defined( $array_key ) ) { 
+    if ( ! defined( $array_key ) ) {
       ($array_key,)=each( %{ $ref->{query}->{$list} } );
     }
-    # count the items in the array, and add to our total
     $count +=  scalar @{$ref->{query}->{$list}->{$array_key}};
 
     # check if there are more ref to be had
@@ -208,12 +218,26 @@ sub list {
       ($cont_key, $cont_value) = each( %{ $ref->{'query-continue'}->{$list} } );
       $query->{$cont_key} = $cont_value;
       $do_continue = 1;
+    } else {
+      $do_continue = 0;
     }
-    push @results, @{$ref->{query}->{$list}->{$array_key}}
+
+    if ( defined $hook ) {
+      &$hook(\@{$ref->{query}->{$list}->{$array_key}});
+    } else {
+      push @results, @{$ref->{query}->{$list}->{$array_key}};
+    }
 
   } until ( ! $do_continue || ($count >= $max && $max != 0) );
 
-  return @results;
+  if ( ! defined $hook ) {
+    # trim @results down to our $max
+    delete @results[$max..$count] if ( $count > $max && $max != 0 );
+    return @results;
+  } else {
+    return 1;
+  }
+
 }
 
 sub upload {
