@@ -56,6 +56,33 @@ our $VERSION  = "0.03";
 
 Returns a MediaWiki API object. You can pass a config as a hashref when calling new, or set the configuration later.
 
+  my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
+
+Configuration options are
+
+=item * api_url = 'path to mediawiki api.php';
+
+=item * on_error = function reference to call if an error occurs in the module.
+
+An example for the on_error configuration could be something like:
+
+  sub on_error {
+    print "Error code: " . $mw->{error}->{code} . "\n";
+    print $mw->{error}->{details}."\n";
+    die;
+  }
+
+Errors are stored in $mw->error->{code} with more information in $mw->error->{details}. The
+error codes are as follows
+
+  ERR_NO_ERROR = 0 (No error)
+  ERR_CONFIG   = 1 (An error with the configuration)
+  ERR_HTTP     = 2 (An http related connection error)
+  ERR_API      = 3 (An error returned by the MediaWiki API)
+  ERR_LOGIN    = 4 (An error logging in to the MediaWiki)
+  ERR_EDIT     = 5 (An error with an editing function)
+  ERR_UPLOAD   = 6 (An error with the file upload facility)
+
 =cut
 
 sub new {
@@ -130,7 +157,6 @@ sub api {
   return $ref;
 }
 
-
 =head2 MediaWiki::API->logout()
 
 Log the current user out and clear associated cookies and edit tokens.
@@ -166,18 +192,16 @@ are supported via this call. Use this call to edit pages without having to worry
 Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
   # edit a page
-  if ( ! $mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } )  ) {
-    print $mw->{error}->{code} . ': ' . $mw->{error}->{details}."\n";
-  }
+  $mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
 
   # delete a page
-  $mw->edit( { action => 'delete', title => 'DeleteMe' };
+  $mw->edit( { action => 'delete', title => 'DeleteMe' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
 
   # move a page
-  $mw->edit( { action => 'move', from => 'MoveMe', to => 'MoveMe2' };
+  $mw->edit( { action => 'move', from => 'MoveMe', to => 'MoveMe2' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
 
   # rollback a page edit
-  $mw->edit( { action => 'rollback', title => 'Sandbox' };
+  $mw->edit( { action => 'rollback', title => 'Sandbox' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
 
 =cut
 
@@ -191,6 +215,160 @@ sub edit {
   return undef unless ( my $ref = $self->api( $query ) );
 
   return $ref;
+}
+
+
+=head2 MediaWiki::API->get( $page )
+
+A helper function for getting the most recent page contents (and other metadata) for a page. It calls the lower level api function with a revisions query to get the most recent revision.
+
+  # get some page contents
+  my $page = $mw->get_page('Main Page','content');
+  print $page->{content};
+
+Returns a hashref with the following keys or undef on an error.
+
+ids|flags|timestamp|user|comment|size|content
+
+Full information about these can be read on (http://www.mediawiki.org/wiki/API:Query_-_Properties#revisions_.2F_rv)
+
+=cut
+
+sub get_page {
+  my ($self, $title) = @_;
+  return undef unless ( my $ref = $self->api( { action => 'query', prop => 'revisions', titles => $title, rvprop => 'ids|flags|timestamp|user|comment|size|content' } ) );
+  return $ref->{query}->{pages}->{page}->{revisions}->{rev};
+}
+
+=head2 MediaWiki::API->list( $query_hash, $options_hash )
+
+A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
+
+This function will return an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has two parameters
+
+=item * max => value
+
+=item * hook => \&function_hook
+
+The value of max specifies the maximum "queries" which will be used to pull data out. For example the default limit per query is 10 items, but this can be raised to 500 for normal users and higher for sysops and bots. If the limit is raised to 500 and max was set to 2, a maximum of 1000 results would be returned.
+
+If you wish to process large lists, for example the articles in a large category, you can pass a hook function, which will be passed a reference to an array of results for each query connection.
+
+  # process the first 1000 articles in the main namespace in the category "Living people".
+  # get 100 at a time, with a max of 10 and pass each 100 to our hook.
+  $mw->list ( { action => 'query',
+                list => 'categorymembers',
+                cmtitle => 'Category:Living people',
+                cmnamespace => 0,
+                cmlimit=>'10' },
+              { hook => \&print_articles } )
+  || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}
+
+  # print the name of each article
+  sub print_articles {
+    my ($ref) = @_;
+    foreach (@$ref) {
+      print "$_->{title}\n";
+    }
+  }
+
+=cut
+
+sub list {
+  my ($self, $query, $options) = @_;
+  my ($ref, @results);
+  my ($cont_key, $cont_value, $array_key);
+
+  my $list = $query->{list};
+
+  $options->{max} = 0 if ( !defined $options->{max} );
+
+  my $continue = 0;
+  my $count = 0;
+  do {
+    return undef unless ( $ref = $self->api( $query ) );
+
+    # return (empty) array if results are empty
+    return @results unless ( %{$ref->{query}->{$list}} );
+
+    # check if there are more results to be had
+    if ( exists( $ref->{'query-continue'} ) ) {
+      # get query-continue hashref and extract key and value (key will be used as from parameter to continue where we left off)
+      ($cont_key, $cont_value) = each( %{ $ref->{'query-continue'}->{$list} } );
+      $query->{$cont_key} = $cont_value;
+      $continue = 1;
+    } else {
+      $continue = 0;
+    }
+
+    # check if we have yet the key which contains the array of hashrefs for the ref
+    # if not, then get it.
+    if ( ! defined( $array_key ) ) {
+      ($array_key,)=each( %{ $ref->{query}->{$list} } );
+    }
+
+    if ( defined $options->{hook} ) {
+      $options->{hook}(\@{$ref->{query}->{$list}->{$array_key}});
+    } else {
+      push @results, @{$ref->{query}->{$list}->{$array_key}};
+    }
+
+    $count += 1;
+
+  } until ( ! $continue || $count >= $options->{max} && $options->{max} != 0 );
+
+  return 1 if ( defined $options->{max} ); 
+  return @results;
+
+}
+
+=head2 MediaWiki::API->upload( $params_hash )
+
+A function to upload files to a MediaWiki. This function does not use the MediaWiki API currently as support for file uploading is not yet implemented. Instead it uploads using the Special:Upload page, and as such an additional configuration value is needed.
+
+  my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
+  # configure the special upload location.
+  $mw->{config}->{upload_url} = 'http://en.wikipedia.org/wiki/Special:Upload';
+
+The upload function is then called as follows
+
+  # upload a file to MediaWiki
+  open FILE, "myfile.jpg" or die $!;
+  binmode FILE;
+  my ($buffer, $data);
+  while ( read(FILE, $buffer, 65536) )  {
+    $data .= $buffer;
+  }
+  close(FILE);
+
+  $mw->upload( { title => 'file.jpg',
+                 summary => 'This is the summary to go on the Image:file.jpg page',
+                 data => $data } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
+
+Error checking is limited. Also note that the module will force a file upload, ignoring any warning for file size or overwriting an old file.
+
+=cut
+
+sub upload {
+  my ($self, $params) = @_;
+
+  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki Special:Upload page.") unless $self->{config}->{upload_url};
+
+  my $response = $self->{ua}->post(
+    $self->{config}->{upload_url},
+    Content_Type => 'multipart/form-data',
+    Content => [
+      wpUploadFile => [ undef, $params->{title}, Content => $params->{data} ],
+      wpSourceType => 'file',
+      wpDestFile => $params->{title},
+      wpUploadDescription => $params->{summary},
+      wpUpload => 'Upload file',
+      wpIgnoreWarning => 'true', ]
+  );
+
+  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $params->{title}") unless ( $response->code == 302 );
+  return 1;
+
 }
 
 # gets a token for a specified parameter and sets it in the query for the call
@@ -246,91 +424,6 @@ sub _get_set_tokens {
   }
 
   return 1;
-}
-
-=head2 list
-
-instructions go here
-
-=cut
-
-# parameters:
-# mediawiki api parameters for list functions (http://www.mediawiki.org/wiki/API:Query_-_Lists) as hashref
-# number of items to return or 0 for all
-sub list {
-  my ($self, $query, $options) = @_;
-  my ($ref, @results);
-  my ($cont_key, $cont_value, $array_key);
-
-  my $list = $query->{list};
-
-  $options->{max} = 0 if ( !defined $options->{max} );
-
-  my $continue = 0;
-  my $count = 0;
-  do {
-    return undef unless ( $ref = $self->api( $query ) );
-
-    # return (empty) array if results are empty
-    return @results unless ( %{$ref->{query}->{$list}} );
-
-    # check if there are more results to be had
-    if ( exists( $ref->{'query-continue'} ) ) {
-      # get query-continue hashref and extract key and value (key will be used as from parameter to continue where we left off)
-      ($cont_key, $cont_value) = each( %{ $ref->{'query-continue'}->{$list} } );
-      $query->{$cont_key} = $cont_value;
-      $continue = 1;
-    } else {
-      $continue = 0;
-    }
-
-    # check if we have yet the key which contains the array of hashrefs for the ref
-    # if not, then get it.
-    if ( ! defined( $array_key ) ) {
-      ($array_key,)=each( %{ $ref->{query}->{$list} } );
-    }
-
-    if ( defined $options->{hook} ) {
-      $options->{hook}(\@{$ref->{query}->{$list}->{$array_key}});
-    } else {
-      push @results, @{$ref->{query}->{$list}->{$array_key}};
-    }
-
-    $count += 1;
-
-  } until ( ! $continue || $count >= $options->{max} && $options->{max} != 0 );
-
-  return 1 if ( defined $options->{max} ); 
-  return @results;
-
-}
-
-sub upload {
-  my ($self, $title, $data, $summary) = @_;
-
-  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki Special:Upload page.") unless $self->{config}->{upload_url};
-
-  my $response = $self->{ua}->post(
-    $self->{config}->{upload_url},
-    Content_Type => 'multipart/form-data',
-    Content => [
-      wpUploadFile => [ undef, $title, Content => $data ],
-      wpSourceType => 'file',
-      wpDestFile => $title,
-      wpUploadDescription => $summary,
-      wpUpload => 'Upload file',
-      wpIgnoreWarning => 'true', ]
-  );
-
-  return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $title") unless ( $response->code == 302 );
-  return 1;
-
-}
-
-sub get_page {
-  my ($self, $page, $rvprop) = @_;
-  return undef unless ( my $ref = $self->api( { action => 'query', prop => 'revisions', titles => $page, rvprop => $rvprop } ) );
-  return $ref->{query}->{pages}->{page}->{revisions}->{rev};
 }
 
 sub _error {
