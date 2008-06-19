@@ -40,12 +40,13 @@ our $VERSION  = "0.03";
   $mw->{config}->{api_url} = 'http://en.wikipedia.org/w/api.php';
 
   # log in to the wiki
-  $mw->login( {lgname => 'test', lgpassword => 'test' } );
+  $mw->login( { lgname => 'test', lgpassword => 'test' } );
 
-  my $articles=$mw->list ( { action => 'query', list => 'categorymembers', cmtitle => 'http://en.wikipedia.org/wiki/Category:Perl', aplimit=>'max' } );
+  # get a list of articles in category
+  my @articles = $mw->list ( { action => 'query', list => 'categorymembers', cmtitle => 'http://en.wikipedia.org/wiki/Category:Perl', aplimit=>'max' } );
 
   # user info
-  print Dumper $mw->api( { action => 'query', meta => 'userinfo', uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
+  my $userinfo = $mw->api( { action => 'query', meta => 'userinfo', uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
 
     ...
 
@@ -135,6 +136,14 @@ MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with t
     print $ref->{query}->{general}->{sitename};
   }
 
+  # list of titles in different languages.
+  my $titles = $mw->api( { action => 'query', titles => 'Albert Einstein', prop => 'langlinks' } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  my @ll = @{ $titles->{query}->{pages}->{page}->{langlinks}->{ll} };
+
+  foreach (@ll) {
+    print "$_->{content}\n";
+  }
+
 =cut
 
 sub api {
@@ -192,16 +201,16 @@ are supported via this call. Use this call to edit pages without having to worry
 Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
   # edit a page
-  $mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
+  $mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # delete a page
-  $mw->edit( { action => 'delete', title => 'DeleteMe' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
+  $mw->edit( { action => 'delete', title => 'DeleteMe' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # move a page
-  $mw->edit( { action => 'move', from => 'MoveMe', to => 'MoveMe2' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
+  $mw->edit( { action => 'move', from => 'MoveMe', to => 'MoveMe2' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # rollback a page edit
-  $mw->edit( { action => 'rollback', title => 'Sandbox' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
+  $mw->edit( { action => 'rollback', title => 'Sandbox' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
 =cut
 
@@ -266,15 +275,15 @@ The value of max specifies the maximum "queries" which will be used to pull data
 
 If you wish to process large lists, for example the articles in a large category, you can pass a hook function, which will be passed a reference to an array of results for each query connection.
 
-  # process the first 1000 articles in the main namespace in the category "Living people".
-  # get 100 at a time, with a max of 10 and pass each 100 to our hook.
+  # process the first 400 articles in the main namespace in the category "Living people".
+  # get 100 at a time, with a max of 4 and pass each 100 to our hook.
   $mw->list ( { action => 'query',
                 list => 'categorymembers',
                 cmtitle => 'Category:Living people',
                 cmnamespace => 0,
-                cmlimit=>'10' },
-              { hook => \&print_articles } )
-  || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}
+                cmlimit=>'100' },
+              { max => 4, hook => \&print_articles } )
+  || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # print the name of each article
   sub print_articles {
