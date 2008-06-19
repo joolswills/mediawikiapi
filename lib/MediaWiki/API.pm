@@ -61,9 +61,13 @@ Returns a MediaWiki API object. You can pass a config as a hashref when calling 
 
 Configuration options are
 
+=over
+
 =item * api_url = 'path to mediawiki api.php';
 
 =item * on_error = function reference to call if an error occurs in the module.
+
+=back
 
 An example for the on_error configuration could be something like:
 
@@ -265,11 +269,15 @@ sub get_page {
 
 A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
 
-This function will return an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has two parameters
+This function will return an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has two parameters:
+
+=over
 
 =item * max => value
 
 =item * hook => \&function_hook
+
+=back
 
 The value of max specifies the maximum "queries" which will be used to pull data out. For example the default limit per query is 10 items, but this can be raised to 500 for normal users and higher for sysops and bots. If the limit is raised to 500 and max was set to 2, a maximum of 1000 results would be returned.
 
@@ -364,7 +372,7 @@ The upload function is then called as follows
 
   $mw->upload( { title => 'file.jpg',
                  summary => 'This is the summary to go on the Image:file.jpg page',
-                 data => $data } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details}.
+                 data => $data } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
 Error checking is limited. Also note that the module will force a file upload, ignoring any warning for file size or overwriting an old file.
 
