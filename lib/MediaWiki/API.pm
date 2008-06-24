@@ -132,8 +132,7 @@ sub login {
 
 =head2 MediaWiki::API->api( $query_hash )
 
-Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the
-MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
+Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
   # get the name of the site
   if ( my $ref = $mw->api( { action => 'query', meta => 'siteinfo' } ) ) {
@@ -186,17 +185,19 @@ sub logout {
 
 =head2 MediaWiki::API->edit( $query_hash )
 
-A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Changing_wiki_content). Currently only
+A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Changing_wiki_content). Note that you need $wgEnableWriteAPI = true in your LocalSettings.php to use these features.
+
+Currently only
 
 =over
 
-=item * Create/Edit pages
+=item * Create/Edit pages (Mediawiki >= 1.13 )
 
-=item * Move pages
+=item * Move pages  (Mediawiki >= 1.12 )
 
-=item * Rollback
+=item * Rollback  (Mediawiki >= 1.12 )
 
-=item * Delete pages
+=item * Delete pages  (Mediawiki >= 1.12 )
 
 =back
 
