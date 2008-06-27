@@ -7,6 +7,7 @@ use strict;
 
 use LWP::UserAgent;
 use JSON::XS;
+use Data::Dumper;
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -162,15 +163,13 @@ sub api {
 
   return $self->_error(ERR_HTTP,"An HTTP failure occurred.") unless $response->is_success;
 
-  #print Dumper ($response);
-
   #my $ref = XML::Simple->new()->XMLin($response->content, ForceArray => 0, KeyAttr => [ ] );
 
   my $ref  = $self->{json}->decode($response->decoded_content);
 
   #print Dumper ($ref);
 
-  return $self->_error(ERR_API,$ref->{error}->{code} . ": " . decode_entities($ref->{error}->{info}) ) if exists ( $ref->{error} );
+  return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if exists ( $ref->{error} );
 
   return $ref;
 }
@@ -247,7 +246,7 @@ A helper function for getting the most recent page contents (and other metadata)
   # print page contents
   print $page->{'*'};
 
-Returns a hashref with the following keys or undef on an error.
+Returns a hashref with the following keys or undef on an error. If the page is missing then the returned hashref will contain only ns, title and a key called "missing";
 
 =over
 
@@ -282,6 +281,8 @@ sub get_page {
   my $rev = @{ $pageref->{revisions } }[0];
   # delete the revision from the hashref
   delete($pageref->{revisions});
+  # if the page is missing then return the pageref
+  return $pageref if ( defined $pageref->{missing} );
   # combine the pageid, the latest revision and the page title into one hash
   return { 'pageid'=>$pageid, %{ $rev }, %{ $pageref } };
 }
