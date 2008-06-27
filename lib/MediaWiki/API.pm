@@ -6,9 +6,7 @@ use strict;
 # our required modules
 
 use LWP::UserAgent;
-use XML::Simple qw(:strict);
-use HTML::Entities;
-#use Data::Dumper;
+use JSON::XS;
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -26,11 +24,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.03
+Version 0.04
 
 =cut
 
-our $VERSION  = "0.03";
+our $VERSION  = "0.04";
 
 =head1 SYNOPSIS
 
@@ -98,8 +96,12 @@ sub new {
   my $ua = LWP::UserAgent->new();
   $ua->cookie_jar({});
   $ua->agent(__PACKAGE__ . "/$VERSION");
+  $ua->default_header("Accept-Encoding" => "gzip, deflate");
 
   $self->{ua} = $ua;
+
+  my $json = JSON::XS->new->utf8()->max_depth(10) ;
+  $self->{json} = $json;
 
   bless ($self, $class);
   return $self;
@@ -154,15 +156,19 @@ sub api {
 
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.") unless $self->{config}->{api_url};
 
-  $query->{format}='xml';
+  $query->{format}='json';
 
   my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
 
   return $self->_error(ERR_HTTP,"An HTTP failure occurred.") unless $response->is_success;
 
-  #print Dumper ($response->content);
+  #print Dumper ($response);
 
-  my $ref = XML::Simple->new()->XMLin($response->content, ForceArray => 0, KeyAttr => [ ] );
+  #my $ref = XML::Simple->new()->XMLin($response->content, ForceArray => 0, KeyAttr => [ ] );
+
+  my $ref  = $self->{json}->decode($response->decoded_content);
+
+  #print Dumper ($ref);
 
   return $self->_error(ERR_API,$ref->{error}->{code} . ": " . decode_entities($ref->{error}->{info}) ) if exists ( $ref->{error} );
 
@@ -206,16 +212,16 @@ are supported via this call. Use this call to edit pages without having to worry
 Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
   # edit a page
-  $mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  $mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # delete a page
-  $mw->edit( { action => 'delete', title => 'DeleteMe' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  $mw->edit( { action => 'delete', title => 'DeleteMe' } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # move a page
-  $mw->edit( { action => 'move', from => 'MoveMe', to => 'MoveMe2' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  $mw->edit( { action => 'move', from => 'MoveMe', to => 'MoveMe2' } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # rollback a page edit
-  $mw->edit( { action => 'rollback', title => 'Sandbox' } || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  $mw->edit( { action => 'rollback', title => 'Sandbox' } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
 =cut
 
@@ -238,21 +244,28 @@ A helper function for getting the most recent page contents (and other metadata)
 
   # get some page contents
   my $page = $mw->get_page( { title => 'Main Page' } );
-  print $page->{content};
+  # print page contents
+  print $page->{'*'};
 
 Returns a hashref with the following keys or undef on an error.
 
 =over
 
-=item * revid - revision id of page
+=item * '*' - contents of page
 
-=item * timestamp - timestamp of revision
+=item * 'pageid' - page id of page
 
-=item * content - contents of page
+=item * 'revid' - revision id of page
 
-=item * user - user who made revision
+=item * 'timestamp' - timestamp of revision
 
-=item * size - size of page in bytes
+=item * 'user' - user who made revision
+
+=item * 'title' - the title of the page
+
+=item * 'ns' - the namespace the page is in
+
+=item * 'size' - size of page in bytes
 
 =back
 
@@ -263,14 +276,21 @@ Full information about these can be read on (http://www.mediawiki.org/wiki/API:Q
 sub get_page {
   my ($self, $params) = @_;
   return undef unless ( my $ref = $self->api( { action => 'query', prop => 'revisions', titles => $params->{title}, rvprop => 'ids|flags|timestamp|user|comment|size|content' } ) );
-  return $ref->{query}->{pages}->{page}->{revisions}->{rev};
+  # get the page id and the page hashref with title and revisions
+  my ($pageid,$pageref) = each %{ $ref->{query}->{pages} };
+  # get the first revision
+  my $rev = @{ $pageref->{revisions } }[0];
+  # delete the revision from the hashref
+  delete($pageref->{revisions});
+  # combine the pageid, the latest revision and the page title into one hash
+  return { 'pageid'=>$pageid, %{ $rev }, %{ $pageref } };
 }
 
 =head2 MediaWiki::API->list( $query_hash, $options_hash )
 
 A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
 
-This function will return an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has two parameters:
+This function will return a reference to an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has two parameters:
 
 =over
 
@@ -319,7 +339,7 @@ sub list {
     return undef unless ( $ref = $self->api( $query ) );
 
     # return (empty) array if results are empty
-    return @results unless ( %{$ref->{query}->{$list}} );
+    return @results unless ( $ref->{query}->{$list} );
 
     # check if there are more results to be had
     if ( exists( $ref->{'query-continue'} ) ) {
@@ -331,24 +351,18 @@ sub list {
       $continue = 0;
     }
 
-    # check if we have yet the key which contains the array of hashrefs for the ref
-    # if not, then get it.
-    if ( ! defined( $array_key ) ) {
-      ($array_key,)=each( %{ $ref->{query}->{$list} } );
-    }
-
     if ( defined $options->{hook} ) {
-      $options->{hook}(\@{$ref->{query}->{$list}->{$array_key}});
+      $options->{hook}( $ref->{query}->{$list} );
     } else {
-      push @results, @{$ref->{query}->{$list}->{$array_key}};
+      push @results, @{ $ref->{query}->{$list} };
     }
 
     $count += 1;
 
   } until ( ! $continue || $count >= $options->{max} && $options->{max} != 0 );
 
-  return 1 if ( defined $options->{max} ); 
-  return @results;
+  return 1 if ( defined $options->{hook} ); 
+  return \@results;
 
 }
 
@@ -433,17 +447,20 @@ sub _get_set_tokens {
 
   return undef unless ( my $ref = $self->api( { action => 'query', prop => 'info|revisions', $token => $action, titles => $title } ) );
 
-  my $page = $ref->{query}->{pages}->{page};
+  my ($pageid, $pageref) = each %{ $ref->{query}->{pages} };
+
+  return $self->_error( ERR_EDIT, "Unable to $action page '$title'. Page does not exist.") if ( defined ( $pageref->{missing} ) );
+
   if ( $action eq 'rollback' ) {
-    $query->{token} = $page->{revisions}->{rev}->{$action.'token'};
-    $query->{user}  = $page->{revisions}->{rev}->{user};
+    $query->{token} = @{ $pageref->{revisions} }[0]->{$action.'token'};
+    $query->{user}  = @{ $pageref->{revisions} }[0]->{user};
   } else {
-    $query->{token} = $page->{$action.'token'};
+    $query->{token} = $pageref->{$action.'token'};
   }
 
   # need timestamp of last revision for edits to avoid edit conflicts
   if ( $action eq 'edit' ) {
-    $query->{basetimestamp} = $page->{revisions}->{rev}->{timestamp};
+    $query->{basetimestamp} = @{ $pageref->{revisions} }[0]->{timestamp};
   }
 
   return $self->_error( ERR_EDIT, 'Unable to get an edit token ($page).' ) unless ( defined ( $query->{token} ) );
