@@ -578,10 +578,10 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 
 =head1 ACKNOWLEDGEMENTS
 
-Stuart 'kyzer' Caie (kyzer [at] 4u.net) for UnExoticA perl code and support
-Jason 'XtC' Skelly (xtc [at] amigaguide.org) for moral support
-Carl Beckhorn (cbeckhorn [at] fastmail.fm) for ideas and support
-Edward Chernenko (edwardspec [at] gmail.com) for his earlier MediaWiki module
+  Stuart 'kyzer' Caie (kyzer [at] 4u.net) for UnExoticA perl code and support
+  Jason 'XtC' Skelly (xtc [at] amigaguide.org) for moral support
+  Carl Beckhorn (cbeckhorn [at] fastmail.fm) for ideas and support
+  Edward Chernenko (edwardspec [at] gmail.com) for his earlier MediaWiki module
 
 =head1 COPYRIGHT & LICENSE
 
