@@ -44,10 +44,16 @@ our $VERSION  = "0.04";
   $mw->login( { lgname => 'test', lgpassword => 'test' } );
 
   # get a list of articles in category
-  my @articles = $mw->list ( { action => 'query', list => 'categorymembers', cmtitle => 'http://en.wikipedia.org/wiki/Category:Perl', aplimit=>'max' } );
+  my @articles = $mw->list ( { action => 'query',
+    list => 'categorymembers',
+    cmtitle => 'http://en.wikipedia.org/wiki/Category:Perl',
+    aplimit=>'max' } );
 
   # user info
-  my $userinfo = $mw->api( { action => 'query', meta => 'userinfo', uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
+  my $userinfo = $mw->api( {
+    action => 'query',
+    meta => 'userinfo',
+    uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
 
     ...
 
@@ -81,15 +87,27 @@ An example for the on_error configuration could be something like:
 Errors are stored in $mw->error->{code} with more information in $mw->error->{details}. The
 error codes are as follows
 
-  ERR_NO_ERROR = 0 (No error)
-  ERR_CONFIG   = 1 (An error with the configuration)
-  ERR_HTTP     = 2 (An http related connection error)
-  ERR_API      = 3 (An error returned by the MediaWiki API)
-  ERR_LOGIN    = 4 (An error logging in to the MediaWiki)
-  ERR_EDIT     = 5 (An error with an editing function)
-  ERR_UPLOAD   = 6 (An error with the file upload facility)
-  ERR_PARAMS   = 7 (An error with parameters passed to a helper function)
-  ERR_DOWNLOAD = 8 (An error with downloading a file)
+=over
+
+=item * ERR_NO_ERROR = 0 (No error)
+
+=item * ERR_CONFIG   = 1 (An error with the configuration)
+
+=item * ERR_HTTP     = 2 (An http related connection error)
+
+=item * ERR_API      = 3 (An error returned by the MediaWiki API)
+
+=item * ERR_LOGIN    = 4 (An error logging in to the MediaWiki)
+
+=item * ERR_EDIT     = 5 (An error with an editing function)
+
+=item * ERR_UPLOAD   = 6 (An error with the file upload facility)
+
+=item * ERR_PARAMS   = 7 (An error with parameters passed to a helper function)
+
+=item * ERR_DOWNLOAD = 8 (An error with downloading a file)
+
+=back
 
 =cut
 
@@ -131,7 +149,8 @@ sub login {
 
   # reassign hash reference to the login section
   my $login = $ref->{login};
-  return $self->_error( ERR_LOGIN, 'Login Failure: ' . $login->{result} ) unless ( $login->{result} eq 'Success' );
+  return $self->_error( ERR_LOGIN, 'Login Failure: ' . $login->{result} )
+    unless ( $login->{result} eq 'Success' );
 
   # everything was ok so return the reference
   return $login;
@@ -147,7 +166,12 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
   }
 
   # list of titles in different languages.
-  my $titles = $mw->api( { action => 'query', titles => 'Albert Einstein', prop => 'langlinks' } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  my $titles = $mw->api( {
+    action => 'query',
+    titles => 'Albert Einstein',
+    prop => 'langlinks' } )
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  
   my @ll = @{ $titles->{query}->{pages}->{page}->{langlinks}->{ll} };
 
   foreach (@ll) {
@@ -159,13 +183,15 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
 sub api {
   my ($self, $query) = @_;
 
-  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.") unless $self->{config}->{api_url};
+  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
+    unless $self->{config}->{api_url};
 
   $query->{format}='json';
 
   my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
 
-  return $self->_error(ERR_HTTP,"An HTTP failure occurred.") unless $response->is_success;
+  return $self->_error(ERR_HTTP,"An HTTP failure occurred.")
+    unless $response->is_success;
 
   #my $ref = XML::Simple->new()->XMLin($response->content, ForceArray => 0, KeyAttr => [ ] );
 
@@ -215,16 +241,26 @@ are supported via this call. Use this call to edit pages without having to worry
 Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
   # edit a page
-  $mw->edit( { action => 'edit', title => 'Main Page', text => "hello world\n" } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  $mw->edit( {
+    action => 'edit',
+    title => 'Main Page',
+    text => "hello world\n" } )
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # delete a page
-  $mw->edit( { action => 'delete', title => 'DeleteMe' } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  $mw->edit( {
+    action => 'delete', title => 'DeleteMe' } ) 
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # move a page
-  $mw->edit( { action => 'move', from => 'MoveMe', to => 'MoveMe2' } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  $mw->edit( {
+    action => 'move', from => 'MoveMe', to => 'MoveMe2' } )
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # rollback a page edit
-  $mw->edit( { action => 'rollback', title => 'Sandbox' } ) || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  $mw->edit( {
+    action => 'rollback', title => 'Sandbox' } )
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
 =cut
 
@@ -241,7 +277,7 @@ sub edit {
 }
 
 
-=head2 MediaWiki::API->get( $page )
+=head2 MediaWiki::API->get( $params_hash )
 
 A helper function for getting the most recent page contents (and other metadata) for a page. It calls the lower level api function with a revisions query to get the most recent revision.
 
@@ -250,7 +286,7 @@ A helper function for getting the most recent page contents (and other metadata)
   # print page contents
   print $page->{'*'};
 
-Returns a hashref with the following keys or undef on an error. If the page is missing then the returned hashref will contain only ns, title and a key called "missing";
+Returns a hashref with the following keys or undef on an error. If the page is missing then the returned hashref will contain only ns, title and a key called "missing".
 
 =over
 
@@ -280,7 +316,7 @@ sub get_page {
   my ($self, $params) = @_;
   return undef unless ( my $ref = $self->api( { action => 'query', prop => 'revisions', titles => $params->{title}, rvprop => 'ids|flags|timestamp|user|comment|size|content' } ) );
   # get the page id and the page hashref with title and revisions
-  my ($pageid,$pageref) = each %{ $ref->{query}->{pages} };
+  my ($pageid, $pageref) = each %{ $ref->{query}->{pages} };
   # get the first revision
   my $rev = @{ $pageref->{revisions } }[0];
   # delete the revision from the hashref
@@ -375,7 +411,8 @@ sub list {
 
 A function to upload files to a MediaWiki. This function does not use the MediaWiki API currently as support for file uploading is not yet implemented. Instead it uploads using the Special:Upload page, and as such an additional configuration value is needed.
 
-  my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
+  my $mw = MediaWiki::API->new( {
+   api_url => 'http://en.wikipedia.org/w/api.php' }  );
   # configure the special upload location.
   $mw->{config}->{upload_url} = 'http://en.wikipedia.org/wiki/Special:Upload';
 
@@ -424,7 +461,8 @@ sub upload {
 
 A function to download images/files from a MediaWiki. A file url may need to be configured if the api returns a relative URL.
 
-  my $mw = MediaWiki::API->new( { api_url => 'http://www.exotica.org.uk/mediawiki/api.php' }  );
+  my $mw = MediaWiki::API->new( {
+    api_url => 'http://www.exotica.org.uk/mediawiki/api.php' }  );
   # configure the file url. Wikipedia doesn't need this but the ExoticA wiki does.
   $mw->{config}->{files_url} = 'http://www.exotica.org.uk';
 
@@ -539,7 +577,7 @@ __END__
 
 =head1 AUTHOR
 
-Jools Smyth, C<< <buzz at exotica.org.uk> >>
+Jools 'BuZz' Smyth, C<< <buzz at exotica.org.uk> >>
 
 =head1 BUGS
 
@@ -578,10 +616,19 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 
 =head1 ACKNOWLEDGEMENTS
 
-  Stuart 'kyzer' Caie (kyzer [at] 4u.net) for UnExoticA perl code and support
-  Jason 'XtC' Skelly (xtc [at] amigaguide.org) for moral support
-  Carl Beckhorn (cbeckhorn [at] fastmail.fm) for ideas and support
-  Edward Chernenko (edwardspec [at] gmail.com) for his earlier MediaWiki module
+=over
+
+=item * Stuart 'Kyzer' Caie (kyzer [at] 4u.net) for UnExoticA perl code and support
+
+=item * Jason 'XtC' Skelly (xtc [at] amigaguide.org) for moral support
+
+=item * Jonas 'Spectral' Nyren (spectral [at] ludd.luth.se) for hints and tips!
+
+=item * Carl Beckhorn (cbeckhorn [at] fastmail.fm) for ideas and support
+
+=item * Edward Chernenko (edwardspec [at] gmail.com) for his earlier MediaWiki module
+
+=back
 
 =head1 COPYRIGHT & LICENSE
 
