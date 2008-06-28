@@ -535,8 +535,6 @@ sub _error {
   return undef;
 }
 
-1;
-
 __END__
 
 =head1 AUTHOR
