@@ -17,6 +17,8 @@ use constant {
   ERR_LOGIN    => 4,
   ERR_EDIT     => 5,
   ERR_UPLOAD   => 6,
+  ERR_PARAMS   => 7,
+  ERR_DOWNLOAD => 8
 };
 
 =head1 NAME
@@ -86,6 +88,8 @@ error codes are as follows
   ERR_LOGIN    = 4 (An error logging in to the MediaWiki)
   ERR_EDIT     = 5 (An error with an editing function)
   ERR_UPLOAD   = 6 (An error with the file upload facility)
+  ERR_PARAMS   = 7 (An error with parameters passed to a helper function)
+  ERR_DOWNLOAD = 8 (An error with downloading a file)
 
 =cut
 
@@ -414,6 +418,53 @@ sub upload {
   return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $params->{title}") unless ( $response->code == 302 );
   return 1;
 
+}
+
+=head2 MediaWiki::API->download( $params_hash )
+
+A function to download images/files from a MediaWiki. A file url may need to be configured if the api returns a relative URL.
+
+  my $mw = MediaWiki::API->new( { api_url => 'http://www.exotica.org.uk/mediawiki/api.php' }  );
+  # configure the file url. Wikipedia doesn't need this but the ExoticA wiki does.
+  $mw->{config}->{files_url} = 'http://www.exotica.org.uk';
+
+The download function is then called as follows
+
+  my $file = $mw->download( { title => 'Image:Mythic-Beasts_Logo.png'} )
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+
+If the file does not exist (on the wiki) an empty string is returned. If the file is unable to be downloaded undef is returned.
+
+=cut
+
+sub download {
+  my ($self, $params) = @_;
+
+  return $self->_error(ERR_PARAMS,"You need to give a name for the Image page") unless
+    ( defined $params->{title} );
+
+  return undef unless my $ref = $self->api(
+    { action => 'query',
+      titles => $params->{title},
+      prop   => 'imageinfo',
+      iiprop => 'url' } );
+
+  # get the page id and the page hashref with title and revisions
+  my ($pageid,$pageref) = each %{ $ref->{query}->{pages} };
+
+  # if the page is missing then return an empty string
+  return '' if ( defined $pageref->{missing} );
+
+  my $url = @{ $pageref->{imageinfo} }[0]->{url};
+
+  unless ( $url =~ /^http\:\/\// ) {
+    return $self->_error(ERR_PARAMS,'The API returned a relative path. You need to configure the url where files are stored in {config}->{files_url}') unless
+    ( defined $self->{config}->{files_url} );
+    $url = $self->{config}->{files_url} . $url;
+  }
+  my $response = $self->{ua}->get($url);
+  return $self->_error(ERR_DOWNLOAD,"The file '$url' was not found") unless ( $response->code == 200 );
+  return $response->decoded_content;
 }
 
 # gets a token for a specified parameter and sets it in the query for the call
