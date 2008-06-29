@@ -26,11 +26,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.07
+Version 0.08
 
 =cut
 
-our $VERSION  = "0.07";
+our $VERSION  = "0.08";
 
 =head1 SYNOPSIS
 
@@ -69,6 +69,10 @@ Configuration options are
 =over
 
 =item * api_url = 'path to mediawiki api.php';
+
+=item * files_url = 'base url for files'; (needed if the api returns a relative URL for images like /images/a/picture.jpg)
+
+=item * upload_url = 'http://en.wikipedia.org/wiki/Special:Upload'; (path to the upload special page which is required if you want to upload images)
 
 =item * on_error = function reference to call if an error occurs in the module.
 
@@ -265,7 +269,7 @@ Returns a hashref with the results of the call or undef on failure with the erro
 sub edit {
   my ($self, $query) = @_;
 
-  # gets and sets a token for the specific action (different tokens for different edit actions such as rollback/delete etc)
+  # gets and sets a token for the specific action (different tokens for different edit actions such as rollback/delete etc). Also sets the timestamp for edits to avoid conflicts.
   return undef unless ( $self->_get_set_tokens( $query ) );
 
   # do the edit
@@ -486,7 +490,7 @@ sub download {
       iiprop => 'url' } );
 
   # get the page id and the page hashref with title and revisions
-  my ($pageid,$pageref) = each %{ $ref->{query}->{pages} };
+  my ( $pageid, $pageref ) = each %{ $ref->{query}->{pages} };
 
   # if the page is missing then return an empty string
   return '' if ( defined $pageref->{missing} );
@@ -494,12 +498,15 @@ sub download {
   my $url = @{ $pageref->{imageinfo} }[0]->{url};
 
   unless ( $url =~ /^http\:\/\// ) {
-    return $self->_error(ERR_PARAMS,'The API returned a relative path. You need to configure the url where files are stored in {config}->{files_url}') unless
-    ( defined $self->{config}->{files_url} );
+    return $self->_error(ERR_PARAMS,'The API returned a relative path. You need to configure the url where files are stored in {config}->{files_url}')
+      unless ( defined $self->{config}->{files_url} );
     $url = $self->{config}->{files_url} . $url;
   }
+
   my $response = $self->{ua}->get($url);
-  return $self->_error(ERR_DOWNLOAD,"The file '$url' was not found") unless ( $response->code == 200 );
+  return $self->_error(ERR_DOWNLOAD,"The file '$url' was not found")
+    unless ( $response->code == 200 );
+
   return $response->decoded_content;
 }
 
