@@ -7,7 +7,6 @@ use strict;
 
 use LWP::UserAgent;
 use JSON::XS;
-use Data::Dumper;
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -27,11 +26,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =cut
 
-our $VERSION  = "0.06";
+our $VERSION  = "0.07";
 
 =head1 SYNOPSIS
 
@@ -158,7 +157,7 @@ sub login {
   return $login;
 }
 
-=head2 MediaWiki::API->api( $query_hash )
+=head2 MediaWiki::API->api( $query_hash, $options_hash )
 
 Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
@@ -167,23 +166,24 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
     print $ref->{query}->{general}->{sitename};
   }
 
-  # list of titles in different languages.
+  # list of titles for "Albert Einstein" in different languages.
   my $titles = $mw->api( {
     action => 'query',
     titles => 'Albert Einstein',
     prop => 'langlinks' } )
     || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
-  
-  my @ll = @{ $titles->{query}->{pages}->{page}->{langlinks}->{ll} };
 
-  foreach (@ll) {
-    print "$_->{content}\n";
+  my ($pageid,$langlinks) = each ( %{ $titles->{query}->{pages} } );
+
+  foreach ( @{ $langlinks->{langlinks} } ) {
+    print "$_->{'*'}\n";
   }
+
 
 =cut
 
 sub api {
-  my ($self, $query) = @_;
+  my ($self, $query, $options) = @_;
 
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
     unless $self->{config}->{api_url};
@@ -195,11 +195,7 @@ sub api {
   return $self->_error(ERR_HTTP,"An HTTP failure occurred.")
     unless $response->is_success;
 
-  #my $ref = XML::Simple->new()->XMLin($response->content, ForceArray => 0, KeyAttr => [ ] );
-
   my $ref  = $self->{json}->decode($response->decoded_content);
-
-  #print Dumper ($ref);
 
   return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if exists ( $ref->{error} );
 
