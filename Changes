@@ -1,5 +1,8 @@
 Revision history for MediaWiki-API
 
+0.06    2008-06-30
+        Fixed documentation to pass pod test
+
 0.05    2008-06-29
         Various code cleanups and fixes. Documentation improvements. Addition of download function.
 

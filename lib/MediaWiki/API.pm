@@ -27,11 +27,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =cut
 
-our $VERSION  = "0.05";
+our $VERSION  = "0.06";
 
 =head1 SYNOPSIS
 
@@ -279,7 +279,7 @@ sub edit {
 }
 
 
-=head2 MediaWiki::API->get( $params_hash )
+=head2 MediaWiki::API->get_page( $params_hash )
 
 A helper function for getting the most recent page contents (and other metadata) for a page. It calls the lower level api function with a revisions query to get the most recent revision.
 
