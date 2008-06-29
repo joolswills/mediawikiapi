@@ -16,8 +16,8 @@ use constant {
   ERR_API      => 3,
   ERR_LOGIN    => 4,
   ERR_EDIT     => 5,
-  ERR_UPLOAD   => 6,
-  ERR_PARAMS   => 7,
+  ERR_PARAMS   => 6,
+  ERR_UPLOAD   => 7,
   ERR_DOWNLOAD => 8
 };
 
@@ -27,11 +27,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.04
+Version 0.05
 
 =cut
 
-our $VERSION  = "0.04";
+our $VERSION  = "0.05";
 
 =head1 SYNOPSIS
 
@@ -56,7 +56,6 @@ our $VERSION  = "0.04";
     uiprop => 'blockinfo|hasmsg|groups|rights|options|editcount|ratelimits' } );
 
     ...
-
 
 =head1 FUNCTIONS
 
@@ -101,9 +100,9 @@ error codes are as follows
 
 =item * ERR_EDIT     = 5 (An error with an editing function)
 
-=item * ERR_UPLOAD   = 6 (An error with the file upload facility)
+=item * ERR_PARAMS   = 6 (An error with parameters passed to a helper function)
 
-=item * ERR_PARAMS   = 7 (An error with parameters passed to a helper function)
+=item * ERR_UPLOAD   = 7 (An error with the file upload facility)
 
 =item * ERR_DOWNLOAD = 8 (An error with downloading a file)
 
@@ -125,6 +124,9 @@ sub new {
 
   my $json = JSON::XS->new->utf8()->max_depth(10) ;
   $self->{json} = $json;
+
+  $self->{error}->{code} = 0;
+  $self->{error}->{details} = 0;
 
   bless ($self, $class);
   return $self;
@@ -577,7 +579,7 @@ __END__
 
 =head1 AUTHOR
 
-Jools 'BuZz' Smyth, C<< <buzz at exotica.org.uk> >>
+Jools 'BuZz' Smyth, C<< <buzz [at] exotica.org.uk> >>
 
 =head1 BUGS
 
