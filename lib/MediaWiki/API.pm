@@ -572,8 +572,6 @@ sub _get_set_tokens {
 
   my ($pageid, $pageref) = each %{ $ref->{query}->{pages} };
 
-  print Dumper $pageref;
-
   # if the page doesn't exist and we aren't editing/creating a new page then return an error
   return $self->_error( ERR_EDIT, "Unable to $action page '$title'. Page does not exist.") if ( defined $pageref->{missing} && $action ne 'edit' );
 
