@@ -12,6 +12,7 @@ WriteMakefile(
         'Test::More'     => 0,
         'JSON::XS'       => 0,
         'LWP::UserAgent' => 0,
+        'Encode'         => 0
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'MediaWiki-API-*' },

@@ -7,6 +7,7 @@ use strict;
 
 use LWP::UserAgent;
 use JSON::XS;
+use Encode;
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -26,13 +27,15 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.08
+Version 0.11
 
 =cut
 
-our $VERSION  = "0.08";
+our $VERSION  = "0.11";
 
 =head1 SYNOPSIS
+
+This module provides an interface between Perl and the MediaWiki API (http://www.mediawiki.org/wiki/API) allowing creation of scripts to automate editing and extraction of data from MediaWiki driven sites like Wikipedia.
 
   use MediaWiki::API;
 
@@ -40,15 +43,23 @@ our $VERSION  = "0.08";
   $mw->{config}->{api_url} = 'http://en.wikipedia.org/w/api.php';
 
   # log in to the wiki
-  $mw->login( { lgname => 'test', lgpassword => 'test' } );
+  $mw->login( { lgname => 'username', lgpassword => 'password' } );
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # get a list of articles in category
-  my @articles = $mw->list ( { action => 'query',
+  my $articles = $mw->list ( {
+    action => 'query',
     list => 'categorymembers',
-    cmtitle => 'http://en.wikipedia.org/wiki/Category:Perl',
-    aplimit=>'max' } );
+    cmtitle => 'Category:Perl',
+    cmlimit => 'max' } )
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
-  # user info
+  # and print the article titles
+  foreach (@{$articles}) {
+      print "$_->{title}\n";
+  }
+
+  # get user info
   my $userinfo = $mw->api( {
     action => 'query',
     meta => 'userinfo',
@@ -142,7 +153,8 @@ Logs in to a MediaWiki. Parameters are those used by the MediaWiki API (http://w
   my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
 
   #log in to the wiki
-  $mw->login( {lgname => 'username', lgpassword => 'password' } );
+  $mw->login( {lgname => 'username', lgpassword => 'password' } )
+    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
 =cut
 
@@ -154,7 +166,7 @@ sub login {
 
   # reassign hash reference to the login section
   my $login = $ref->{login};
-  return $self->_error( ERR_LOGIN, 'Login Failure: ' . $login->{result} )
+  return $self->_error( ERR_LOGIN, 'Login Failure - ' . $login->{result} )
     unless ( $login->{result} eq 'Success' );
 
   # everything was ok so return the reference
@@ -165,6 +177,8 @@ sub login {
 
 Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
+  binmode STDOUT, ':utf8';
+
   # get the name of the site
   if ( my $ref = $mw->api( { action => 'query', meta => 'siteinfo' } ) ) {
     print $ref->{query}->{general}->{sitename};
@@ -174,7 +188,8 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
   my $titles = $mw->api( {
     action => 'query',
     titles => 'Albert Einstein',
-    prop => 'langlinks' } )
+    prop => 'langlinks',
+    lllimit => 'max' } )
     || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   my ($pageid,$langlinks) = each ( %{ $titles->{query}->{pages} } );
@@ -188,6 +203,8 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
 
 sub api {
   my ($self, $query, $options) = @_;
+
+  $self->_encode_hashref_utf8($query);
 
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
     unless $self->{config}->{api_url};
@@ -347,11 +364,13 @@ The value of max specifies the maximum "queries" which will be used to pull data
 
 If you wish to process large lists, for example the articles in a large category, you can pass a hook function, which will be passed a reference to an array of results for each query connection.
 
-  # process the first 400 articles in the main namespace in the category "Living people".
+  binmode STDOUT, ':utf8';
+
+  # process the first 400 articles in the main namespace in the category "Surnames".
   # get 100 at a time, with a max of 4 and pass each 100 to our hook.
   $mw->list ( { action => 'query',
                 list => 'categorymembers',
-                cmtitle => 'Category:Living people',
+                cmtitle => 'Category:Surnames',
                 cmnamespace => 0,
                 cmlimit=>'100' },
               { max => 4, hook => \&print_articles } )
@@ -510,6 +529,15 @@ sub download {
   return $response->decoded_content;
 }
 
+# encodes a hash (passed by reference) to utf-8
+# used to encode parameters before being passed to the api
+sub _encode_hashref_utf8 {
+  my ($self, $ref) = @_;
+  for my $key ( keys %{$ref} ) {
+    $ref->{$key} = encode_utf8( $ref->{$key} );
+  }
+}
+
 # gets a token for a specified parameter and sets it in the query for the call
 sub _get_set_tokens {
   my ($self, $query) = @_;
@@ -544,7 +572,10 @@ sub _get_set_tokens {
 
   my ($pageid, $pageref) = each %{ $ref->{query}->{pages} };
 
-  return $self->_error( ERR_EDIT, "Unable to $action page '$title'. Page does not exist.") if ( defined ( $pageref->{missing} ) );
+  print Dumper $pageref;
+
+  # if the page doesn't exist and we aren't editing/creating a new page then return an error
+  return $self->_error( ERR_EDIT, "Unable to $action page '$title'. Page does not exist.") if ( defined $pageref->{missing} && $action ne 'edit' );
 
   if ( $action eq 'rollback' ) {
     $query->{token} = @{ $pageref->{revisions} }[0]->{$action.'token'};
@@ -553,12 +584,12 @@ sub _get_set_tokens {
     $query->{token} = $pageref->{$action.'token'};
   }
 
-  # need timestamp of last revision for edits to avoid edit conflicts
-  if ( $action eq 'edit' ) {
+  # need timestamp of last revision for edits to avoid edit conflicts (if there are previous revisions)
+  if ( $action eq 'edit' && defined $pageref->{revisions} ) {
     $query->{basetimestamp} = @{ $pageref->{revisions} }[0]->{timestamp};
   }
 
-  return $self->_error( ERR_EDIT, 'Unable to get an edit token ($page).' ) unless ( defined ( $query->{token} ) );
+  return $self->_error( ERR_EDIT, 'Unable to get an edit token ($page).' ) unless ( defined $query->{token} );
 
   # cache the token. rollback tokens are specific for the page name and last edited user so can not be cached.
   if ( $action ne 'rollback' ) {

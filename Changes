@@ -1,5 +1,17 @@
 Revision history for MediaWiki-API
 
+0.11    2008-07-30
+        Fixed a big bug where I was returning a failure when getting edit tokens if the page didn't
+        exist. This certainly doesn't make sense when you are creating a page! The consequences were
+        it was actually impossible to create a new page.
+        Thanks to Stuart Caie for the patch. 
+
+0.10    2008-07-14
+        Some fixes to documentation examples (Were not updated after some changes in the interface).
+
+0.09    2008-07-13
+        Automatically encode API parameter values to utf-8.
+
 0.08    2008-06-30
         A lot of releases for one day I know. Minor stuff again, but some dependencies had been left out
         of the makefile which mean't the module was failing some automatic testing. Also made the config
