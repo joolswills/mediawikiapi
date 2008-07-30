@@ -1,5 +1,8 @@
 Revision history for MediaWiki-API
 
+0.12    2008-07-30
+        I shouldn't rush things. Removed a debug line I left in.
+
 0.11    2008-07-30
         Fixed a big bug where I was returning a failure when getting edit tokens if the page didn't
         exist. This certainly doesn't make sense when you are creating a page! The consequences were
