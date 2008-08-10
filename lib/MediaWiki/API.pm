@@ -27,11 +27,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.12
+Version 0.13
 
 =cut
 
-our $VERSION  = "0.12";
+our $VERSION  = "0.13";
 
 =head1 SYNOPSIS
 
@@ -198,13 +198,19 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
     print "$_->{'*'}\n";
   }
 
+Parameters are encoded from perl strings UTF-8 to be passed to Mediawiki automatically, which is normally what you would want. In case for any reason your parameters are already in UTF-8 you can skip the encoding by passing an option skip_encoding => 1 in the $options_hash. For example:
+
+  # $data already contains utf-8 encoded wikitext
+  my $ref = $mw->api( { action => 'parse', text => $data }, { skip_encoding => 1 } );
 
 =cut
 
 sub api {
   my ($self, $query, $options) = @_;
 
-  $self->_encode_hashref_utf8($query);
+  unless ( $options->{skip_encoding} ) {
+    $self->_encode_hashref_utf8($query);
+  }
 
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
     unless $self->{config}->{api_url};
