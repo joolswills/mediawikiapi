@@ -1,5 +1,10 @@
 Revision history for MediaWiki-API
 
+0.14    2008-09-21
+        Module now traps and reports errors with the JSON decoding. This helps if for some reason
+        api.php returns an error (such as a PHP error) rather than JSON formatted data. Thanks to Steve
+        Sanbeg for this patch.
+
 0.13    2008-08-10
         As requested by Kjell, an option has been added to the api call to skip encoding of parameters
         to utf-8.

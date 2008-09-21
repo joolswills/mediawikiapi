@@ -8,6 +8,7 @@ use strict;
 use LWP::UserAgent;
 use JSON::XS;
 use Encode;
+use Carp;
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -27,11 +28,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.13
+Version 0.14
 
 =cut
 
-our $VERSION  = "0.13";
+our $VERSION  = "0.14";
 
 =head1 SYNOPSIS
 
@@ -198,7 +199,7 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
     print "$_->{'*'}\n";
   }
 
-Parameters are encoded from perl strings UTF-8 to be passed to Mediawiki automatically, which is normally what you would want. In case for any reason your parameters are already in UTF-8 you can skip the encoding by passing an option skip_encoding => 1 in the $options_hash. For example:
+Parameters are encoded from perl strings to UTF-8 to be passed to Mediawiki automatically, which is normally what you would want. In case for any reason your parameters are already in UTF-8 you can skip the encoding by passing an option skip_encoding => 1 in the $options_hash. For example:
 
   # $data already contains utf-8 encoded wikitext
   my $ref = $mw->api( { action => 'parse', text => $data }, { skip_encoding => 1 } );
@@ -222,7 +223,14 @@ sub api {
   return $self->_error(ERR_HTTP,"An HTTP failure occurred.")
     unless $response->is_success;
 
-  my $ref  = $self->{json}->decode($response->decoded_content);
+  my $ref; 
+  eval {
+      $ref  = $self->{json}->decode($response->decoded_content);
+  };
+  if ($@) {
+      my $content = $response->decoded_content;
+      croak "Failed to decode JSON returned by $self->{config}->{api_url}: $@\n $content";
+  };
 
   return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if exists ( $ref->{error} );
 
