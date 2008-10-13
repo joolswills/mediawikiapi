@@ -28,11 +28,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.14
+Version 0.19
 
 =cut
 
-our $VERSION  = "0.14";
+our $VERSION  = "0.19";
 
 =head1 SYNOPSIS
 
@@ -44,7 +44,7 @@ This module provides an interface between Perl and the MediaWiki API (http://www
   $mw->{config}->{api_url} = 'http://en.wikipedia.org/w/api.php';
 
   # log in to the wiki
-  $mw->login( { lgname => 'username', lgpassword => 'password' } );
+  $mw->login( { lgname => 'username', lgpassword => 'password' } )
     || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
   # get a list of articles in category
@@ -80,26 +80,38 @@ Configuration options are
 
 =over
 
-=item * api_url = 'path to mediawiki api.php';
+=item * api_url = 'Path to mediawiki api.php';
 
-=item * files_url = 'base url for files'; (needed if the api returns a relative URL for images like /images/a/picture.jpg)
+=item * files_url = 'Base url for files'; (needed if the api returns a relative URL for images like /images/a/picture.jpg)
 
 =item * upload_url = 'http://en.wikipedia.org/wiki/Special:Upload'; (path to the upload special page which is required if you want to upload images)
 
-=item * on_error = function reference to call if an error occurs in the module.
+=item * on_error = Function reference to call if an error occurs in the module.
+
+=item * max_lag = Integer value in seconds; Wikipedia runs on a database cluster and as such high edit rates cause the slave servers to lag. If this config option is set then if the lag is more then the value of max_lag, the api will wait before retrying the request. 5 is a recommended value. More information about this subject can be found at http://www.mediawiki.org/wiki/Manual:Maxlag_parameter. note the config option includes an underscore so match the naming scheme of the other configuration options. 
+
+=item * max_lag_delay = Integer value in seconds; This configuration option specified the delay to wait before retrying a request when the server has reported a lag more than the value of max_lag. This defaults to 5 if using the max_lag configuration option.
+
+=item * max_retries = Integer value; The number of retries to send an API request if an http error or JSON decoding error occurs. Defaults to 1. If max_retries is set to 5, and the wiki is down, the error won't be reported until after 5th attempt try. 
+
+=item * retry_delay = Integer value in seconds; The amount of time to wait before retrying a request if an HTTP error or JSON decoding error occurs.
 
 =back
 
 An example for the on_error configuration could be something like:
 
+  $mw->{on_error} = \&on_error;
+
   sub on_error {
     print "Error code: " . $mw->{error}->{code} . "\n";
-    print $mw->{error}->{details}."\n";
+    print $mw->{error}->{stacktrace}."\n";
     die;
   }
 
-Errors are stored in $mw->error->{code} with more information in $mw->error->{details}. The
-error codes are as follows
+Errors are stored in $mw->{error}->{code} with more information in $mw->{error}->{details}. $mw->{error}->{stacktrace} includes
+the details and a stacktrace to locate where any problems originated from (in some code which uses this module for example).
+
+The error codes are as follows
 
 =over
 
@@ -213,24 +225,68 @@ sub api {
     $self->_encode_hashref_utf8($query);
   }
 
+  my $maxlag = $self->{config}->{max_lag};
+  $query->{maxlag} = $self->{config}->{max_lag} if defined $maxlag;
+
+  my $maxretries = $self->{config}->{max_retries};
+  $maxretries = 1 unless ( defined $maxretries );
+
+  my $retrydelay = $self->{config}->{retry_delay};
+  $retrydelay = 5 unless ( defined $retrydelay );
+
+  my $maxlagdelay = $self->{config}->{max_lag_delay};
+  $maxlagdelay = 5 unless ( defined $maxlagdelay );
+
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
     unless $self->{config}->{api_url};
 
   $query->{format}='json';
 
-  my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
+  my $ref;
+  while (1) {
+    # http retry loop
+    foreach my $retry (1 .. $maxretries) {
 
-  return $self->_error(ERR_HTTP,"An HTTP failure occurred.")
-    unless $response->is_success;
+      my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
 
-  my $ref; 
-  eval {
-      $ref  = $self->{json}->decode($response->decoded_content);
-  };
-  if ($@) {
-      my $content = $response->decoded_content;
-      croak "Failed to decode JSON returned by $self->{config}->{api_url}: $@\n $content";
-  };
+      # if we have reached our maximum retries, then deal with the error
+      if ( $retry == $maxretries ) {
+        return $self->_error(ERR_HTTP,"An HTTP failure occurred when accessing $self->{config}->{api_url}")
+          unless $response->is_success;
+
+        return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned a zero length string")
+          unless $response->is_success;
+      }
+
+      eval {
+        $ref = $self->{json}->decode($response->decoded_content);
+      };
+
+      if ( $@ ) {
+        my $error = $@;
+        my $content = $response->decoded_content;
+        return $self->_error(ERR_HTTP,"Failed to decode JSON returned by $self->{config}->{api_url}\nDecoding Error:\n$error\nReturned Data:\n$content")
+          if $retry == $maxretries;
+        sleep $retrydelay;
+        next;
+      }
+    }
+
+    # check lag and wait
+    if (exists $ref->{error} && $ref->{error}->{code} eq 'maxlag' ) {
+      #$ref->{'error'}->{'info'} =~ /: (\d+) seconds lagged^/;
+      #my $lag = $1;
+      sleep $maxlagdelay;
+      # redo the request
+      next;
+    }
+
+    # if we got this far, then everything is ok, so we want out of the while loop
+    last;
+
+  }
+
+  # need a retry count for http problems and for
 
   return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if exists ( $ref->{error} );
 
@@ -612,11 +668,12 @@ sub _get_set_tokens {
 }
 
 sub _error {
-  my ($mw, $code, $desc) = @_;
-  $mw->{error}->{code} = $code;
-  $mw->{error}->{details} = $desc;
+  my ($self, $code, $desc) = @_;
+  $self->{error}->{code} = $code;
+  $self->{error}->{details} = $desc;
+  $self->{error}->{stacktrace} = Carp::longmess($desc);
 
-  $mw->{config}->{on_error}->() if ($mw->{config}->{on_error});
+  $self->{config}->{on_error}->() if (defined $self->{config}->{on_error});
 
   return undef;
 }
@@ -682,9 +739,18 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 
 Copyright 2008 Jools Smyth, all rights reserved.
 
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+This library is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 3 of the License, or
+(at your option) any later version.
 
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 =cut
 

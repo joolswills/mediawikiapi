@@ -1,5 +1,15 @@
 Revision history for MediaWiki-API
 
+0.15    2008-10-12
+        Licensed the code under GPL v3.
+
+        Added support for maxlag (see http://www.mediawiki.org/wiki/Manual:Maxlag_parameter). This is
+        controlled with configuration option max_lag. There are two more configuration options to deal
+        with http or connection problems. These are max_retries and retry_delay. There is an additional
+        error field now ({error}->{detail}) which contains the error detail as well as a stacktrace
+        to see the originating call. For help on using these configuration parameters please see the
+        documentation. Thanks to Dan Collins for the maxlag suggestion/report.
+
 0.14    2008-09-21
         Module now traps and reports errors with the JSON decoding. This helps if for some reason
         api.php returns an error (such as a PHP error) rather than JSON formatted data. Thanks to Steve
