@@ -19,7 +19,14 @@ use constant {
   ERR_EDIT     => 5,
   ERR_PARAMS   => 6,
   ERR_UPLOAD   => 7,
-  ERR_DOWNLOAD => 8
+  ERR_DOWNLOAD => 8,
+
+  DEF_RETRIES => 0,
+  DEF_RETRY_DELAY => 0,
+
+  DEF_MAX_LAG => undef,
+  DEF_MAX_LAG_RETRIES => 4,
+  DEF_MAX_LAG_DELAY => 5
 };
 
 =head1 NAME
@@ -28,11 +35,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.19
+Version 0.16
 
 =cut
 
-our $VERSION  = "0.19";
+our $VERSION  = "0.16";
 
 =head1 SYNOPSIS
 
@@ -88,13 +95,15 @@ Configuration options are
 
 =item * on_error = Function reference to call if an error occurs in the module.
 
+=item * retries = Integer value; The number of retries to send an API request if an http error or JSON decoding error occurs. Defaults to 0 (try only once - don't retry). If max_retries is set to 4, and the wiki is down, the error won't be reported until after the 65th connection attempt. 
+
+=item * retry_delay = Integer value in seconds; The amount of time to wait before retrying a request if an HTTP error or JSON decoding error occurs.
+
 =item * max_lag = Integer value in seconds; Wikipedia runs on a database cluster and as such high edit rates cause the slave servers to lag. If this config option is set then if the lag is more then the value of max_lag, the api will wait before retrying the request. 5 is a recommended value. More information about this subject can be found at http://www.mediawiki.org/wiki/Manual:Maxlag_parameter. note the config option includes an underscore so match the naming scheme of the other configuration options. 
 
 =item * max_lag_delay = Integer value in seconds; This configuration option specified the delay to wait before retrying a request when the server has reported a lag more than the value of max_lag. This defaults to 5 if using the max_lag configuration option.
 
-=item * max_retries = Integer value; The number of retries to send an API request if an http error or JSON decoding error occurs. Defaults to 1. If max_retries is set to 5, and the wiki is down, the error won't be reported until after 5th attempt try. 
-
-=item * retry_delay = Integer value in seconds; The amount of time to wait before retrying a request if an HTTP error or JSON decoding error occurs.
+=item * max_lag_retries = Integer value; The number of retries to send an API request if the server has reported a lag more than the value of max_lag. If the maximum retries is reached, an error is returned. Setting this to a negative value like -1 will mean the request is resent until the servers max_lag is below the threshold or another error occurs. Defaults to 4.
 
 =back
 
@@ -152,8 +161,17 @@ sub new {
   my $json = JSON::XS->new->utf8()->max_depth(10) ;
   $self->{json} = $json;
 
+  # initialise some defaults
   $self->{error}->{code} = 0;
-  $self->{error}->{details} = 0;
+  $self->{error}->{details} = '';
+  $self->{error}->{stacktrace} = '';
+
+  $self->{config}->{retries} = DEF_RETRIES;
+  $self->{config}->{retry_delay} = DEF_RETRY_DELAY;
+
+  $self->{config}->{max_lag} = DEF_MAX_LAG;
+  $self->{config}->{max_lag_retries} = DEF_MAX_LAG_RETRIES;
+  $self->{config}->{max_lag_delay} = DEF_MAX_LAG_DELAY;
 
   bless ($self, $class);
   return $self;
@@ -225,17 +243,10 @@ sub api {
     $self->_encode_hashref_utf8($query);
   }
 
-  my $maxlag = $self->{config}->{max_lag};
-  $query->{maxlag} = $self->{config}->{max_lag} if defined $maxlag;
+  my $retries = $self->{config}->{retries};
+  my $maxlagretries = $self->{config}->{max_lag_retries};
 
-  my $maxretries = $self->{config}->{max_retries};
-  $maxretries = 1 unless ( defined $maxretries );
-
-  my $retrydelay = $self->{config}->{retry_delay};
-  $retrydelay = 5 unless ( defined $retrydelay );
-
-  my $maxlagdelay = $self->{config}->{max_lag_delay};
-  $maxlagdelay = 5 unless ( defined $maxlagdelay );
+  $query->{maxlag} = $self->{config}->{max_lag} if defined $self->{config}->{max_lag}; 
 
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
     unless $self->{config}->{api_url};
@@ -244,18 +255,19 @@ sub api {
 
   my $ref;
   while (1) {
-    # http retry loop
-    foreach my $retry (1 .. $maxretries) {
+
+    # connection retry loop.
+    foreach my $try (0 .. $retries) {
 
       my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
 
-      # if we have reached our maximum retries, then deal with the error
-      if ( $retry == $maxretries ) {
-        return $self->_error(ERR_HTTP,"An HTTP failure occurred when accessing $self->{config}->{api_url}")
+      # if we have reached our maximum retries, then deal with any errors error
+      if ( $try == $retries ) {
+        return $self->_error(ERR_HTTP,"An HTTP failure occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
           unless $response->is_success;
 
         return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned a zero length string")
-          unless $response->is_success;
+          if ( length $response->decoded_content == 0 );
       }
 
       eval {
@@ -266,27 +278,31 @@ sub api {
         my $error = $@;
         my $content = $response->decoded_content;
         return $self->_error(ERR_HTTP,"Failed to decode JSON returned by $self->{config}->{api_url}\nDecoding Error:\n$error\nReturned Data:\n$content")
-          if $retry == $maxretries;
-        sleep $retrydelay;
+          if ( $try == $retries );
+        sleep $self->{config}->{retry_delay};
         next;
       }
     }
 
     # check lag and wait
     if (exists $ref->{error} && $ref->{error}->{code} eq 'maxlag' ) {
-      #$ref->{'error'}->{'info'} =~ /: (\d+) seconds lagged^/;
-      #my $lag = $1;
-      sleep $maxlagdelay;
-      # redo the request
-      next;
+      $ref->{'error'}->{'info'} =~ /: (\d+) seconds lagged/;
+      my $lag = $1;
+      if ($maxlagretries == 0) {
+        return $self->_error(ERR_API,"Server has reported lag above the configure max_lag value of " . $self->{config}->{max_lag} . " value after " .($maxlagretries+1)." attempt(s). Last reported lag was - ". $ref->{'error'}->{'info'})
+      } else {
+        sleep $self->{config}->{max_lag_delay};
+        $maxlagretries-- if $maxlagretries > 0;
+        # redo the request
+        next;
+      }
+
     }
 
-    # if we got this far, then everything is ok, so we want out of the while loop
+    # if we got this far, then we have a hashref from the api and we want out of the while loop
     last;
 
   }
-
-  # need a retry count for http problems and for
 
   return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if exists ( $ref->{error} );
 
