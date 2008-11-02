@@ -1,5 +1,25 @@
 Revision history for MediaWiki-API
 
+0.19    2008-11-01
+        Removed debug line. oops!
+
+0.18    2008-11-01
+        Fixed small error with the on_error example. It showed to use $mw->{on_error} instead of
+        $mw->{config}->{on_error}.
+
+        Improved http error messages. 
+
+
+0.17    2008-10-30
+        My understanding on the way rollback worked was flawed. The rollback call always rolled back the last users edit 
+        for a page, whereas it should only rollback "the requested" users edits if they were the last editor for a page.
+        This is now fixed. The timestamp code for editing was also broken. By default the edit call will not handle any 
+        conflicts for you. When you get the contents of a page, you should save the timestamp and pass this back to the
+        edit call, which will give you an error if someone else had edited the page in the meantime (or at least if their
+        edit has caused a conflict)
+
+        Big thanks to Steve Sanbeg for help/support/patches and bringing these problems to my attention.
+
 0.16    2008-10-16
         Licensed the code under GPL v3.
 

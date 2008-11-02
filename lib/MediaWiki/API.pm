@@ -10,6 +10,8 @@ use JSON::XS;
 use Encode;
 use Carp;
 
+#use Data::Dumper;
+
 use constant {
   ERR_NO_ERROR => 0,
   ERR_CONFIG   => 1,
@@ -35,11 +37,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.16
+Version 0.19
 
 =cut
 
-our $VERSION  = "0.16";
+our $VERSION  = "0.19";
 
 =head1 SYNOPSIS
 
@@ -109,7 +111,7 @@ Configuration options are
 
 An example for the on_error configuration could be something like:
 
-  $mw->{on_error} = \&on_error;
+  $mw->{config}->{on_error} = \&on_error;
 
   sub on_error {
     print "Error code: " . $mw->{error}->{code} . "\n";
@@ -263,7 +265,7 @@ sub api {
 
       # if we have reached our maximum retries, then deal with any errors error
       if ( $try == $retries ) {
-        return $self->_error(ERR_HTTP,"An HTTP failure occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
+        return $self->_error(ERR_HTTP, $response->status_line . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)"  )
           unless $response->is_success;
 
         return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned a zero length string")
@@ -345,26 +347,39 @@ are supported via this call. Use this call to edit pages without having to worry
 
 Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
-  # edit a page
-  $mw->edit( {
-    action => 'edit',
-    title => 'Main Page',
-    text => "hello world\n" } )
-    || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+Here are some example snippets of code. The first example is for adding some text to an existing page (if the page doesn't exist nothing will happen). Note that the timestamp for the revision we are changing is saved. This allows us to avoid edit conflicts. The value is passed back to the edit function, and if someone had edited the page in the meantime, an error will be returned.
+
+  my $pagename = "Wikipedia:Sandbox";
+  my $ref = $mw->get_page( { title => $pagename } );
+  unless ( $ref->{missing} ) {
+    my $timestamp = $ref->{timestamp};
+    $mw->edit( {
+      action => 'edit',
+      title => $pagename,
+      basetimestamp => $timestamp, # to avoid edit conflicts
+      text => $ref->{'*'} . "\nAdditional text" } )
+      || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+  }
+
+The following code deletes a page with the name "DeleteMe". You can specify a reason for the deletion, otherwise
+a generated reason will be used.
 
   # delete a page
   $mw->edit( {
-    action => 'delete', title => 'DeleteMe' } ) 
+    action => 'delete', title => 'DeleteMe', reason => 'no longer needed' } ) 
     || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
+
+This code moves a page from MoveMe to MoveMe2.
 
   # move a page
   $mw->edit( {
     action => 'move', from => 'MoveMe', to => 'MoveMe2' } )
     || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
-  # rollback a page edit
+The following scrippet rolls back one or more edits from user MrVandal. If the user is not the last editor of the page, an error will be returned. If no user is passed, the edits for whoever last changed the page will be rolled back.
+
   $mw->edit( {
-    action => 'rollback', title => 'Sandbox' } )
+    action => 'rollback', title => 'Sandbox', user => 'MrVandal' } )
     || die $mw->{error}->{code} . ': ' . $mw->{error}->{details};
 
 =cut
@@ -663,17 +678,14 @@ sub _get_set_tokens {
 
   if ( $action eq 'rollback' ) {
     $query->{token} = @{ $pageref->{revisions} }[0]->{$action.'token'};
-    $query->{user}  = @{ $pageref->{revisions} }[0]->{user};
+    my $lastuser = @{ $pageref->{revisions} }[0]->{user};
+    $query->{user} = @{ $pageref->{revisions} }[0]->{user} unless defined $query->{user};
+    return $self->_error( ERR_EDIT, "Unable to rollback edits from user '$query->{user}' for page '$title'. Last edit was made by user $lastuser" ) if ( $query->{user} ne $lastuser );
   } else {
     $query->{token} = $pageref->{$action.'token'};
   }
 
-  # need timestamp of last revision for edits to avoid edit conflicts (if there are previous revisions)
-  if ( $action eq 'edit' && defined $pageref->{revisions} ) {
-    $query->{basetimestamp} = @{ $pageref->{revisions} }[0]->{timestamp};
-  }
-
-  return $self->_error( ERR_EDIT, 'Unable to get an edit token ($page).' ) unless ( defined $query->{token} );
+  return $self->_error( ERR_EDIT, "Unable to get an edit token for action '$action'." ) unless ( defined $query->{token} );
 
   # cache the token. rollback tokens are specific for the page name and last edited user so can not be cached.
   if ( $action ne 'rollback' ) {
