@@ -37,11 +37,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.19
+Version 0.20
 
 =cut
 
-our $VERSION  = "0.19";
+our $VERSION  = "0.20";
 
 =head1 SYNOPSIS
 
@@ -146,6 +146,14 @@ The error codes are as follows
 
 =back
 
+Other useful parameters and objects in the MediaWiki::API object are
+
+=over
+
+=item * MediaWiki::API->{ua} = The LWP::UserAgent object. You could modify this to get or modify the cookies (MediaWiki::API->{ua}->cookie_jar) or to change the UserAgent string sent by this perl module (MediaWiki::API->{ua}->agent)
+
+=item * MediaWiki::API->{response} = the last response object returned by the LWP::UserAgent after an API request.
+
 =cut
 
 sub new {
@@ -181,7 +189,7 @@ sub new {
 
 =head2 MediaWiki::API->login( $query_hash )
 
-Logs in to a MediaWiki. Parameters are those used by the MediaWiki API (http://www.mediawiki.org/wiki/API:Login). Returns a hash with some login details, or undef on login failure. Errors are stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}
+Logs in to a MediaWiki. Parameters are those used by the MediaWiki API (http://www.mediawiki.org/wiki/API:Login). Returns a hash with some login details, or undef on login failure. Errors are stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
   my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
 
@@ -208,7 +216,7 @@ sub login {
 
 =head2 MediaWiki::API->api( $query_hash, $options_hash )
 
-Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
+Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}. MediaWiki::API uses the LWP::UserAgent module to send the http requests to the MediaWiki API. After any API call, the response object returned by LWP::UserAgent is available in $mw->{response};
 
   binmode STDOUT, ':utf8';
 
@@ -262,8 +270,9 @@ sub api {
     foreach my $try (0 .. $retries) {
 
       my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
+      $self->{response} = $response;
 
-      # if we have reached our maximum retries, then deal with any errors error
+      # if we have reached our maximum retries, then deal with any connection errors
       if ( $try == $retries ) {
         return $self->_error(ERR_HTTP, $response->status_line . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)"  )
           unless $response->is_success;
@@ -276,18 +285,25 @@ sub api {
         $ref = $self->{json}->decode($response->decoded_content);
       };
 
-      if ( $@ ) {
+      if ( $@) {
+        # an error occurred, so we check if we need to retry and continue
         my $error = $@;
         my $content = $response->decoded_content;
         return $self->_error(ERR_HTTP,"Failed to decode JSON returned by $self->{config}->{api_url}\nDecoding Error:\n$error\nReturned Data:\n$content")
           if ( $try == $retries );
         sleep $self->{config}->{retry_delay};
         next;
+      } else {
+        # no error so we want out of the retry loop
+        last;
       }
+      
     }
 
+    return $self->_error(ERR_API,"API has returned an empty array reference. Please check your parameters") if ( ref($ref) eq 'ARRAY' && scalar @{$ref} == 0);
+
     # check lag and wait
-    if (exists $ref->{error} && $ref->{error}->{code} eq 'maxlag' ) {
+    if (ref($ref) eq 'HASH' && exists $ref->{error} && $ref->{error}->{code} eq 'maxlag' ) {
       $ref->{'error'}->{'info'} =~ /: (\d+) seconds lagged/;
       my $lag = $1;
       if ($maxlagretries == 0) {
@@ -306,7 +322,7 @@ sub api {
 
   }
 
-  return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if exists ( $ref->{error} );
+  return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if ( ref($ref) eq 'HASH' && exists $ref->{error} );
 
   return $ref;
 }
@@ -635,7 +651,7 @@ sub download {
 sub _encode_hashref_utf8 {
   my ($self, $ref) = @_;
   for my $key ( keys %{$ref} ) {
-    $ref->{$key} = encode_utf8( $ref->{$key} );
+    $ref->{$key} = encode_utf8( $ref->{$key} ) if defined $ref->{$key};
   }
 }
 

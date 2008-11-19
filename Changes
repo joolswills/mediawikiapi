@@ -1,5 +1,19 @@
 Revision history for MediaWiki-API
 
+0.20    2008-11-19
+        The retry limit was reached whether or not the mediawiki api.php returned valid data. Oops. That's what
+        I get for not testing new features properly.
+
+        Now returns the response object as part of the MediaWiki::API object in case the user wants direct access
+        to data returned by the mediawiki api.php such as cookies etc.
+        
+        Now the API doesn't try and encode undefined parameters sent to the API, which was causing the Encode
+        module to spit out warnings.
+        
+        Small improvement to documentation including the new features.
+        
+        Thanks to Dan Collins and Dan Bolser for bug reports and feedback.
+
 0.19    2008-11-01
         Removed debug line. oops!
 
