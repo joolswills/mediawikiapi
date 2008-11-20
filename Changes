@@ -1,5 +1,9 @@
 Revision history for MediaWiki-API
 
+0.22    2008-11-20
+        Reworked the http connection and errors handling code to be more resiliant (and removed some bugs).
+        Fixed up some copy and paste documentation errors.
+
 0.21    2008-11-20
         Fixed some errors in the documentation including one which caused the module to fail a POD check.
 

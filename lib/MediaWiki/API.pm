@@ -37,11 +37,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.21
+Version 0.22
 
 =cut
 
-our $VERSION  = "0.21";
+our $VERSION  = "0.22";
 
 =head1 SYNOPSIS
 
@@ -271,34 +271,54 @@ sub api {
     # connection retry loop.
     foreach my $try (0 .. $retries) {
 
+      # if we are already retrying, then wait the specified delay
+      if ( $try > 0 ) {
+        sleep $self->{config}->{retry_delay};
+      }
+
       my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
       $self->{response} = $response;
+      
+      # if the request was successful then check the returned content and decode.
+      if ( $response->is_success ) {
+        
+        my $decontent = $response->decoded_content( { charset => 'none' } );
 
-      # if we have reached our maximum retries, then deal with any connection errors
-      if ( $try == $retries ) {
-        return $self->_error(ERR_HTTP, $response->status_line . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)"  )
-          unless $response->is_success;
+        if ( ! defined $decontent ) {
+          return $self->_error(ERR_HTTP,"Unable to decode content returned by $self->{config}->{api_url} - Unknown content encoding?")
+            if ( $try == $retries );
+          next;
+        }
+        
+        if ( length $decontent == 0 ) {
+          return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned a zero length string")
+            if ( $try == $retries );
+            next;
+        }
 
-        return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned a zero length string")
-          if ( length $response->decoded_content == 0 );
-      }
+        # decode the json trapping any errors
+        eval {
+          $ref = $self->{json}->decode($decontent);
+        };
 
-      eval {
-        $ref = $self->{json}->decode($response->decoded_content);
-      };
+        if ( $@) {
+          # an error occurred, so we check if we need to retry and continue
+          my $error = $@;
+          return $self->_error(ERR_HTTP,"Failed to decode JSON returned by $self->{config}->{api_url}\nDecoding Error:\n$error\nReturned Data:\n$decontent")
+            if ( $try == $retries );
+          next;
+        } else {
+          # no error so we want out of the retry loop
+          last;
+        }
 
-      if ( $@) {
-        # an error occurred, so we check if we need to retry and continue
-        my $error = $@;
-        my $content = $response->decoded_content;
-        return $self->_error(ERR_HTTP,"Failed to decode JSON returned by $self->{config}->{api_url}\nDecoding Error:\n$error\nReturned Data:\n$content")
-          if ( $try == $retries );
-        sleep $self->{config}->{retry_delay};
-        next;
+      # if the request was not successful then we retry or return a failure if the maximum retries
+      # have been reached
       } else {
-        # no error so we want out of the retry loop
-        last;
-      }
+        return $self->_error(ERR_HTTP, $response->status_line . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
+          if ( $try == $retries );
+        next;
+      }       
       
     }
 
@@ -467,7 +487,7 @@ sub get_page {
 
 =head2 MediaWiki::API->list( $query_hash, $options_hash )
 
-A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
+A helper function for getting lists using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
 
 This function will return a reference to an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has two parameters:
 
