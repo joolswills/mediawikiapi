@@ -1,7 +1,7 @@
 Revision history for MediaWiki-API
 
-0.21    2008-xx-xx
-        Fixed a typo in the documentation.
+0.21    2008-11-20
+        Fixed some errors in the documentation including one which caused the module to fail a POD check.
 
 0.20    2008-11-19
         The retry limit was reached whether or not the mediawiki api.php returned valid data. Oops. That's what
