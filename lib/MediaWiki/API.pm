@@ -37,11 +37,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.22
+Version 0.23
 
 =cut
 
-our $VERSION  = "0.22";
+our $VERSION  = "0.23";
 
 =head1 SYNOPSIS
 
@@ -282,7 +282,7 @@ sub api {
       # if the request was successful then check the returned content and decode.
       if ( $response->is_success ) {
         
-        my $decontent = $response->decoded_content( { charset => 'none' } );
+        my $decontent = $response->decoded_content( charset => 'none' );
 
         if ( ! defined $decontent ) {
           return $self->_error(ERR_HTTP,"Unable to decode content returned by $self->{config}->{api_url} - Unknown content encoding?")
@@ -293,7 +293,7 @@ sub api {
         if ( length $decontent == 0 ) {
           return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned a zero length string")
             if ( $try == $retries );
-            next;
+          next;
         }
 
         # decode the json trapping any errors
@@ -313,7 +313,7 @@ sub api {
         }
 
       # if the request was not successful then we retry or return a failure if the maximum retries
-      # have been reached
+      # have been reached, otherwise we try again
       } else {
         return $self->_error(ERR_HTTP, $response->status_line . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
           if ( $try == $retries );
@@ -789,15 +789,17 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 
 =over
 
+=item * Carl Beckhorn (cbeckhorn [at] fastmail.fm) for ideas and support
+
 =item * Stuart 'Kyzer' Caie (kyzer [at] 4u.net) for UnExoticA perl code and support
 
-=item * Jason 'XtC' Skelly (xtc [at] amigaguide.org) for moral support
+=item * Edward Chernenko (edwardspec [at] gmail.com) for his earlier MediaWiki module
+
+=item * Dan Collins (EN.WP.ST47 [at] gmail.com) for bug reports and patches
 
 =item * Jonas 'Spectral' Nyren (spectral [at] ludd.luth.se) for hints and tips!
 
-=item * Carl Beckhorn (cbeckhorn [at] fastmail.fm) for ideas and support
-
-=item * Edward Chernenko (edwardspec [at] gmail.com) for his earlier MediaWiki module
+=item * Jason 'XtC' Skelly (xtc [at] amigaguide.org) for moral support
 
 =back
 

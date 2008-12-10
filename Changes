@@ -1,8 +1,15 @@
 Revision history for MediaWiki-API
 
+0.23    2008-12-09
+        Was passing parameter to Response->decoded_content as hashref instead of hash.
+        Thanks to Dan Collins for the report.
+
 0.22    2008-11-20
         Reworked the http connection and errors handling code to be more resiliant (and removed some bugs).
         Fixed up some copy and paste documentation errors.
+        
+        Note that this version needs some testing. It should be more resialiant than the old version,
+        which in some respects had slightly wrong error handling (I was cutting corners a bit).
 
 0.21    2008-11-20
         Fixed some errors in the documentation including one which caused the module to fail a POD check.
