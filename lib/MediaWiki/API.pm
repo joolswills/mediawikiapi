@@ -79,9 +79,9 @@ This module provides an interface between Perl and the MediaWiki API (http://www
 
 =head1 FUNCTIONS
 
-=head2 MediaWiki::API->new( [ $config_hash ] )
+=head2 MediaWiki::API->new( { $config_hash } )
 
-Returns a MediaWiki API object. You can pass a config as a hashref when calling new, or set the configuration later.
+Returns a MediaWiki API object. You can pass a config as a hashref when calling new, or set the configuration later. When creating a new object, defaults for max lag and retries are set.
 
   my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
 
