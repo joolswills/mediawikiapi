@@ -37,11 +37,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.23
+Version 0.24
 
 =cut
 
-our $VERSION  = "0.23";
+our $VERSION  = "0.24";
 
 =head1 SYNOPSIS
 
@@ -539,8 +539,8 @@ sub list {
   do {
     return undef unless ( $ref = $self->api( $query ) );
 
-    # return (empty) array if results are empty
-    return @results unless ( $ref->{query}->{$list} );
+    # return (empty) arrayref if there are no results
+    return \@results unless ( $ref->{query}->{$list} );
 
     # check if there are more results to be had
     if ( exists( $ref->{'query-continue'} ) ) {

@@ -1,5 +1,8 @@
 Revision history for MediaWiki-API
 
+0.24    2009-01-13
+        MediaWiki::API->list was returning an array instead of arraref when no results/warning from api.
+
 0.23    2008-12-09
         Was passing parameter to Response->decoded_content as hashref instead of hash.
         Thanks to Dan Collins for the report.
