@@ -1,5 +1,9 @@
 Revision history for MediaWiki-API
 
+0.25    2009-03-19
+        Support the skip_encoding option in the list and edit calls. Thanks to Brent Garber for
+        reporting this problem.
+
 0.24    2009-01-13
         MediaWiki::API->list was returning an array instead of arraref when no results/warning from api.
 

@@ -37,11 +37,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.24
+Version 0.25
 
 =cut
 
-our $VERSION  = "0.24";
+our $VERSION  = "0.25";
 
 =head1 SYNOPSIS
 
@@ -363,7 +363,7 @@ sub logout {
   $self->{config}->{tokens} = undef;
 }
 
-=head2 MediaWiki::API->edit( $query_hash )
+=head2 MediaWiki::API->edit( $query_hash, $options_hash )
 
 A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Changing_wiki_content). Note that you need $wgEnableWriteAPI = true in your LocalSettings.php to use these features.
 
@@ -384,6 +384,8 @@ Currently only
 are supported via this call. Use this call to edit pages without having to worry about getting an edit token from the API first. The function will cache edit tokens to speed up future edits (Except for rollback edits, which are not cachable).
 
 Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
+
+The options hashref currently has one optional parameter (skip_encoding => 1). This is described above in the MediaWiki::API->api call documentation.
 
 Here are some example snippets of code. The first example is for adding some text to an existing page (if the page doesn't exist nothing will happen). Note that the timestamp for the revision we are changing is saved. This allows us to avoid edit conflicts. The value is passed back to the edit function, and if someone had edited the page in the meantime, an error will be returned.
 
@@ -423,13 +425,13 @@ The following scrippet rolls back one or more edits from user MrVandal. If the u
 =cut
 
 sub edit {
-  my ($self, $query) = @_;
+  my ($self, $query, $options) = @_;
 
   # gets and sets a token for the specific action (different tokens for different edit actions such as rollback/delete etc). Also sets the timestamp for edits to avoid conflicts.
   return undef unless ( $self->_get_set_tokens( $query ) );
 
   # do the edit
-  return undef unless ( my $ref = $self->api( $query ) );
+  return undef unless ( my $ref = $self->api( $query, $options ) );
 
   return $ref;
 }
@@ -489,7 +491,7 @@ sub get_page {
 
 A helper function for getting lists using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
 
-This function will return a reference to an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has two parameters:
+This function will return a reference to an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has three parameters:
 
 =over
 
@@ -497,11 +499,15 @@ This function will return a reference to an array of hashes or undef on failure.
 
 =item * hook => \&function_hook
 
+=item * skip_encoding => 1
+
 =back
 
 The value of max specifies the maximum "queries" which will be used to pull data out. For example the default limit per query is 10 items, but this can be raised to 500 for normal users and higher for sysops and bots. If the limit is raised to 500 and max was set to 2, a maximum of 1000 results would be returned.
 
 If you wish to process large lists, for example the articles in a large category, you can pass a hook function, which will be passed a reference to an array of results for each query connection.
+
+The skip_encoding parameter works as described above in the MediaWiki::API->api call documentation.
 
   binmode STDOUT, ':utf8';
 
