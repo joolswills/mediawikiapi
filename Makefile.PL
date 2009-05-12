@@ -11,7 +11,7 @@ WriteMakefile(
     PL_FILES            => {},
     PREREQ_PM => {
         'Test::More'     => 0,
-        'JSON::XS'       => 0,
+        'JSON'           => 0,
         'LWP::UserAgent' => 0,
         'Encode'         => 0,
         'Carp'           => 0

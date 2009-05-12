@@ -6,11 +6,12 @@ use strict;
 # our required modules
 
 use LWP::UserAgent;
-use JSON::XS;
+use URI::Escape;
+use JSON;
 use Encode;
 use Carp;
 
-#use Data::Dumper;
+# use Data::Dumper;
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -28,7 +29,9 @@ use constant {
 
   DEF_MAX_LAG => undef,
   DEF_MAX_LAG_RETRIES => 4,
-  DEF_MAX_LAG_DELAY => 5
+  DEF_MAX_LAG_DELAY => 5,
+
+  USE_HTTP_GET => 0
 };
 
 =head1 NAME
@@ -37,11 +40,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.25
+Version 0.26
 
 =cut
 
-our $VERSION  = "0.25";
+our $VERSION  = "0.26";
 
 =head1 SYNOPSIS
 
@@ -96,6 +99,8 @@ Configuration options are
 =item * upload_url = 'http://en.wikipedia.org/wiki/Special:Upload'; (path to the upload special page which is required if you want to upload images)
 
 =item * on_error = Function reference to call if an error occurs in the module.
+
+=item * use_http_get = Boolean 0 or 1 (defaults to 0). If set to 1, the perl module will use http GET method for accessing the api. By default it uses the POST method. Note that the module will still use POST for the api calls that require POST no matter what the value of this configuration option.
 
 =item * retries = Integer value; The number of retries to send an API request if an http error or JSON decoding error occurs. Defaults to 0 (try only once - don't retry). If max_retries is set to 4, and the wiki is down, the error won't be reported until after the 5th connection attempt. 
 
@@ -184,6 +189,8 @@ sub new {
   $self->{config}->{max_lag} = DEF_MAX_LAG;
   $self->{config}->{max_lag_retries} = DEF_MAX_LAG_RETRIES;
   $self->{config}->{max_lag_delay} = DEF_MAX_LAG_DELAY;
+  
+  $self->{config}->{use_http_get} = USE_HTTP_GET;
 
   bless ($self, $class);
   return $self;
@@ -251,6 +258,23 @@ Parameters are encoded from perl strings to UTF-8 to be passed to Mediawiki auto
 sub api {
   my ($self, $query, $options) = @_;
 
+  my $post_actions = {
+    'login' => 1,
+    'edit' => 1,
+    'move' => 1,
+    'rollback' => 1,
+    'delete' => 1,
+    'protect' => 1,
+    'unprotect' => 1,
+    'block' => 1,
+    'unblock' => 1,
+    'watch' => 1,
+    'unwatch' => 1,
+    'emailuser' => 1,
+    'import' => 1,
+    'userrights' => 1 
+  };
+
   unless ( $options->{skip_encoding} ) {
     $self->_encode_hashref_utf8($query);
   }
@@ -276,7 +300,15 @@ sub api {
         sleep $self->{config}->{retry_delay};
       }
 
-      my $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
+      # if the config is set to use GET we need to contruct the querystring. some actions are "POST" only -
+      # edit, move, action = rollback, action = undelete, action = 
+      my $response;
+      if ( $self->{config}->{use_http_get} && ! defined $post_actions->{$query->{action}} ) {
+        my $qs = _make_querystring( $query );
+        $response = $self->{ua}->get( $self->{config}->{api_url} . $qs );
+      } else {
+        $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
+      }
       $self->{response} = $response;
       
       # if the request was successful then check the returned content and decode.
@@ -683,6 +715,17 @@ sub _encode_hashref_utf8 {
   }
 }
 
+# creates a querystring from a hashref
+sub _make_querystring {
+  my ($ref) = @_;
+  my @qs = ();
+  for my $key ( keys %{$ref} ) {
+    my $keyval = uri_escape($key) . '=' . uri_escape($ref->{$key});
+    push(@qs, $keyval);
+  }
+  return '?' . join('&',@qs);
+}
+
 # gets a token for a specified parameter and sets it in the query for the call
 sub _get_set_tokens {
   my ($self, $query) = @_;
@@ -754,7 +797,7 @@ __END__
 
 =head1 AUTHOR
 
-Jools 'BuZz' Smyth, C<< <buzz [at] exotica.org.uk> >>
+Jools 'BuZz' Wills, C<< <buzz [at] exotica.org.uk> >>
 
 =head1 BUGS
 
@@ -811,14 +854,14 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Jools Smyth, all rights reserved.
+Copyright 2008 Jools Wills, all rights reserved.
 
-This library is free software; you can redistribute it and/or modify
+This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 3 of the License, or
+the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-This library is distributed in the hope that it will be useful,
+This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.

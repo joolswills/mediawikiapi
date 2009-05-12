@@ -1,5 +1,11 @@
 Revision history for MediaWiki-API
 
+0.26    2009-05-12
+        A new configuration option $mw->{config}->{use_http_get} to tell the module to use http GET requests for
+        those API calls that allow it. By default the module will use POST for all API requests. Fixes bug #45974.
+        Switched the module to ask for the JSON module and not specifically JSON::XS. If JSON::XS is available the
+        JSON module will use it by default, but if not it will fallback to a pure perl JSON parser.
+
 0.25    2009-03-19
         Support the skip_encoding option in the list and edit calls. Thanks to Brent Garber for
         reporting this problem.
