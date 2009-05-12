@@ -7,6 +7,7 @@ WriteMakefile(
     AUTHOR              => 'Jools Smyth <buzz@exotica.org.uk>',
     VERSION_FROM        => 'lib/MediaWiki/API.pm',
     ABSTRACT_FROM       => 'lib/MediaWiki/API.pm',
+    LICENSE             => 'GPL-3+',
     PL_FILES            => {},
     PREREQ_PM => {
         'Test::More'     => 0,
