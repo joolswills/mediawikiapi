@@ -1,5 +1,9 @@
 Revision history for MediaWiki-API
 
+0.27    2009-05-14
+        Updated README installation instructions including some notes for building debian packages and dependencies.
+        Fixed old reference to JSON::XS
+
 0.26    2009-05-12
         A new configuration option $mw->{config}->{use_http_get} to tell the module to use http GET requests for
         those API calls that allow it. By default the module will use POST for all API requests. Fixes bug #45974.

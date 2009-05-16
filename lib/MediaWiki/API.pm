@@ -100,7 +100,7 @@ Configuration options are
 
 =item * on_error = Function reference to call if an error occurs in the module.
 
-=item * use_http_get = Boolean 0 or 1 (defaults to 0). If set to 1, the perl module will use http GET method for accessing the api. By default it uses the POST method. Note that the module will still use POST for the api calls that require POST no matter what the value of this configuration option.
+=item * use_http_get = Boolean 0 or 1 (defaults to 0). If set to 1, the perl module will use http GET method for accessing the api. By default it uses the POST method. Note that the module will still use POST for the api calls that require POST no matter what the value of this configuration option. Currently the following actions will work with GET: query, logout, purge, paraminfo.
 
 =item * retries = Integer value; The number of retries to send an API request if an http error or JSON decoding error occurs. Defaults to 0 (try only once - don't retry). If max_retries is set to 4, and the wiki is down, the error won't be reported until after the 5th connection attempt. 
 
@@ -175,7 +175,7 @@ sub new {
 
   $self->{ua} = $ua;
 
-  my $json = JSON::XS->new->utf8()->max_depth(10) ;
+  my $json = JSON->new->utf8()->max_depth(10) ;
   $self->{json} = $json;
 
   # initialise some defaults
@@ -258,21 +258,11 @@ Parameters are encoded from perl strings to UTF-8 to be passed to Mediawiki auto
 sub api {
   my ($self, $query, $options) = @_;
 
-  my $post_actions = {
-    'login' => 1,
-    'edit' => 1,
-    'move' => 1,
-    'rollback' => 1,
-    'delete' => 1,
-    'protect' => 1,
-    'unprotect' => 1,
-    'block' => 1,
-    'unblock' => 1,
-    'watch' => 1,
-    'unwatch' => 1,
-    'emailuser' => 1,
-    'import' => 1,
-    'userrights' => 1 
+  my $get_actions = {
+    'query' => 1,
+    'logout' => 1,
+    'purge' => 1,
+    'paraminfo' => 1
   };
 
   unless ( $options->{skip_encoding} ) {
@@ -303,7 +293,7 @@ sub api {
       # if the config is set to use GET we need to contruct the querystring. some actions are "POST" only -
       # edit, move, action = rollback, action = undelete, action = 
       my $response;
-      if ( $self->{config}->{use_http_get} && ! defined $post_actions->{$query->{action}} ) {
+      if ( $self->{config}->{use_http_get} && defined $get_actions->{$query->{action}} ) {
         my $qs = _make_querystring( $query );
         $response = $self->{ua}->get( $self->{config}->{api_url} . $qs );
       } else {

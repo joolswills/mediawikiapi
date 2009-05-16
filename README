@@ -4,14 +4,39 @@ This module provides an interface between perl and the MediaWiki API
 (http://www.mediawiki.org/wiki/API) allowing creation of scripts to automate
 editing and extraction of data from MediaWiki driven sites like Wikipedia.
 
-INSTALLATION
+STANDARD INSTALLATION
+
+This module requires the following perl modules
+
+    LWP::UserAgent
+    URI::Escape
+    JSON
+    Encode
+    Carp
+
+and optionally JSON::XS for faster JSON decoding.
 
 To install this module, run the following commands:
 
-	perl Makefile.PL
-	make
-	make test
-	make install
+    perl Makefile.PL
+    make
+    make test
+    make install
+
+CREATING DEBIAN PACKAGE / INSTALLING ON DEBIAN
+
+Note that this module requires the packages libwww-perl, libjson-perl, and
+optionally libjson-xs-perl for faster JSON decoding.
+
+On a debian system, you can easily generate a debian package to install. To
+do this make sure you have the package "dh-make-perl" installed. Unpack the
+MediaWiki-API-x.xx.tar.gz and run
+
+dh-make-perl
+dpkg-buildpackage
+
+If everything works successfully you should have a deb file created in the
+parent folder.
 
 SUPPORT AND DOCUMENTATION
 
@@ -36,7 +61,7 @@ You can also look for information at:
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2008 Jools Smyth
+Copyright (C) 2009 Jools Wills
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
