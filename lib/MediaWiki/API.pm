@@ -40,11 +40,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.26
+Version 0.27
 
 =cut
 
-our $VERSION  = "0.26";
+our $VERSION  = "0.27";
 
 =head1 SYNOPSIS
 
@@ -82,7 +82,7 @@ This module provides an interface between Perl and the MediaWiki API (http://www
 
 =head1 FUNCTIONS
 
-=head2 MediaWiki::API->new( { $config_hash } )
+=head2 MediaWiki::API->new( $config_hashref )
 
 Returns a MediaWiki API object. You can pass a config as a hashref when calling new, or set the configuration later. When creating a new object, defaults for max lag and retries are set.
 
@@ -196,9 +196,9 @@ sub new {
   return $self;
 }
 
-=head2 MediaWiki::API->login( $query_hash )
+=head2 MediaWiki::API->login( $query_hashref )
 
-Logs in to a MediaWiki. Parameters are those used by the MediaWiki API (http://www.mediawiki.org/wiki/API:Login). Returns a hash with some login details, or undef on login failure. Errors are stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
+Logs in to a MediaWiki. Parameters are those used by the MediaWiki API (http://www.mediawiki.org/wiki/API:Login). Returns a hashref with some login details, or undef on login failure. Errors are stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
   my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
 
@@ -223,7 +223,7 @@ sub login {
   return $login;
 }
 
-=head2 MediaWiki::API->api( $query_hash, $options_hash )
+=head2 MediaWiki::API->api( $query_hashref, $options_hashref )
 
 Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}. MediaWiki::API uses the LWP::UserAgent module to send the http requests to the MediaWiki API. After any API call, the response object returned by LWP::UserAgent is available in $mw->{response};
 
@@ -385,7 +385,7 @@ sub logout {
   $self->{config}->{tokens} = undef;
 }
 
-=head2 MediaWiki::API->edit( $query_hash, $options_hash )
+=head2 MediaWiki::API->edit( $query_hashref, $options_hashref )
 
 A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Changing_wiki_content). Note that you need $wgEnableWriteAPI = true in your LocalSettings.php to use these features.
 
@@ -459,7 +459,7 @@ sub edit {
 }
 
 
-=head2 MediaWiki::API->get_page( $params_hash )
+=head2 MediaWiki::API->get_page( $params_hashref )
 
 A helper function for getting the most recent page contents (and other metadata) for a page. It calls the lower level api function with a revisions query to get the most recent revision.
 
@@ -509,7 +509,7 @@ sub get_page {
   return { 'pageid'=>$pageid, %{ $rev }, %{ $pageref } };
 }
 
-=head2 MediaWiki::API->list( $query_hash, $options_hash )
+=head2 MediaWiki::API->list( $query_hashref, $options_hashref )
 
 A helper function for getting lists using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
 
@@ -595,7 +595,7 @@ sub list {
 
 }
 
-=head2 MediaWiki::API->upload( $params_hash )
+=head2 MediaWiki::API->upload( $params_hashref )
 
 A function to upload files to a MediaWiki. This function does not use the MediaWiki API currently as support for file uploading is not yet implemented. Instead it uploads using the Special:Upload page, and as such an additional configuration value is needed.
 
@@ -645,7 +645,7 @@ sub upload {
 
 }
 
-=head2 MediaWiki::API->download( $params_hash )
+=head2 MediaWiki::API->download( $params_hashref )
 
 A function to download images/files from a MediaWiki. A file url may need to be configured if the api returns a relative URL.
 
