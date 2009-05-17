@@ -513,7 +513,7 @@ sub get_page {
 
 A helper function for getting lists using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
 
-This function will return a reference to an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hash currently has three parameters:
+This function will return a reference to an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hashref currently has three parameters:
 
 =over
 
