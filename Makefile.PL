@@ -4,7 +4,7 @@ use ExtUtils::MakeMaker;
 
 WriteMakefile(
     NAME                => 'MediaWiki::API',
-    AUTHOR              => 'Jools Smyth <buzz@exotica.org.uk>',
+    AUTHOR              => 'Jools Wills <buzz@exotica.org.uk>',
     VERSION_FROM        => 'lib/MediaWiki/API.pm',
     ABSTRACT_FROM       => 'lib/MediaWiki/API.pm',
     LICENSE             => 'GPL-3+',
