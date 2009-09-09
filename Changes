@@ -1,5 +1,8 @@
 Revision history for MediaWiki-API
 
+0.28    2009-09-09
+        The skip_encoding option was ignored for the list function. Thanks to Estelle for reporting the problem.
+
 0.27    2009-05-14
         Updated README installation instructions including some notes for building debian packages and dependencies.
         Fixed old reference to JSON::XS
