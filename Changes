@@ -1,5 +1,10 @@
 Revision history for MediaWiki-API
 
+0.29    2010-01-10
+        Module will now use any proxy settings if set in the environment. To force the module not to use a proxy even
+        if set there is a new configuration option MediaWiki::API->{config}->{noproxy} that can be set. Thanks to
+        Andy Jenkinson for the suggestion and patch.
+
 0.28    2009-09-09
         The skip_encoding option was ignored for the list function. Thanks to Estelle for reporting the problem.
 
