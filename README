@@ -25,6 +25,9 @@ To install this module, run the following commands:
 
 CREATING DEBIAN PACKAGE / INSTALLING ON DEBIAN
 
+Please note that Debian squeeze and Ubuntu Karmic already have a package
+with this module.
+
 Note that this module requires the packages libwww-perl, libjson-perl, and
 optionally libjson-xs-perl for faster JSON decoding.
 
