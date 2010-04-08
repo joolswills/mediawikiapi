@@ -40,11 +40,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.29
+Version 0.30
 
 =cut
 
-our $VERSION  = "0.29";
+our $VERSION  = "0.30";
 
 =head1 SYNOPSIS
 
@@ -201,7 +201,7 @@ sub new {
 
 =head2 MediaWiki::API->login( $query_hashref )
 
-Logs in to a MediaWiki. Parameters are those used by the MediaWiki API (http://www.mediawiki.org/wiki/API:Login). Returns a hashref with some login details, or undef on login failure. Errors are stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
+Logs in to a MediaWiki. Parameters are those used by the MediaWiki API (http://www.mediawiki.org/wiki/API:Login). Returns a hashref with some login details, or undef on login failure. If Mediawiki sends requests a LoginToken the login is attempted again, but with the token sent from the initial login. Errors are stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
   my $mw = MediaWiki::API->new( { api_url => 'http://en.wikipedia.org/w/api.php' }  );
 
@@ -219,9 +219,20 @@ sub login {
 
   # reassign hash reference to the login section
   my $login = $ref->{login};
+
+  # Do login token checking
+  if ( $login->{result} eq 'NeedToken' ) {
+    my $token = $login->{token};
+    $query->{lgtoken} = $token;
+    # Re-submit previous request with token
+    return undef unless ( $ref = $self->api( $query ) );
+    $login = $ref->{login};
+  }
+
+  # return error if the login was not successful
   return $self->_error( ERR_LOGIN, 'Login Failure - ' . $login->{result} )
     unless ( $login->{result} eq 'Success' );
-
+    
   # everything was ok so return the reference
   return $login;
 }

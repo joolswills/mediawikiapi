@@ -1,5 +1,11 @@
 Revision history for MediaWiki-API
 
+0.30    2010-04-08
+        MediaWiki >= 1.15.3 and MediaWiki >= 1.16.0beta2 now require a login token to be sent when logging in. Please
+        see https://bugzilla.wikimedia.org/show_bug.cgi?id=23076 for more details. The MediaWiki::API login method is
+        now adjusted to handle this automatically. Thanks to Brent Garber for the heads up and the patch which I used
+        with some minor modifications.
+
 0.29    2010-01-10
         Module will now use any proxy settings if set in the environment. To force the module not to use a proxy even
         if set there is a new configuration option MediaWiki::API->{config}->{noproxy} that can be set. Thanks to
@@ -61,7 +67,6 @@ Revision history for MediaWiki-API
         $mw->{config}->{on_error}.
 
         Improved http error messages. 
-
 
 0.17    2008-10-30
         My understanding on the way rollback worked was flawed. The rollback call always rolled back the last users edit 
