@@ -40,11 +40,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.30
+Version 0.32
 
 =cut
 
-our $VERSION  = "0.30";
+our $VERSION  = "0.32";
 
 =head1 SYNOPSIS
 
@@ -168,6 +168,13 @@ Other useful parameters and objects in the MediaWiki::API object are
 sub new {
 
   my ($class, $config) = @_;
+  
+  # if no config passed make a new hash reference and get the default configuration parameters
+  $config = {} if ! defined $config;
+  my $defconfig = _get_config_defaults();
+
+  $config = {%$defconfig, %$config};
+
   my $self = { config => $config  };
 
   my $ua = LWP::UserAgent->new();
@@ -181,22 +188,29 @@ sub new {
   my $json = JSON->new->utf8()->max_depth(10) ;
   $self->{json} = $json;
 
-  # initialise some defaults
+  # initialise error code values
   $self->{error}->{code} = 0;
   $self->{error}->{details} = '';
   $self->{error}->{stacktrace} = '';
 
-  $self->{config}->{retries} = DEF_RETRIES;
-  $self->{config}->{retry_delay} = DEF_RETRY_DELAY;
-
-  $self->{config}->{max_lag} = DEF_MAX_LAG;
-  $self->{config}->{max_lag_retries} = DEF_MAX_LAG_RETRIES;
-  $self->{config}->{max_lag_delay} = DEF_MAX_LAG_DELAY;
-  
-  $self->{config}->{use_http_get} = USE_HTTP_GET;
-
   bless ($self, $class);
   return $self;
+}
+
+# returns a hashref with configuration defaults
+sub _get_config_defaults {
+  my %config;
+
+  $config{retries} = DEF_RETRIES;
+  $config{retry_delay} = DEF_RETRY_DELAY;
+
+  $config{max_lag} = DEF_MAX_LAG;
+  $config{max_lag_retries} = DEF_MAX_LAG_RETRIES;
+  $config{max_lag_delay} = DEF_MAX_LAG_DELAY;
+  
+  $config{use_http_get} = USE_HTTP_GET;
+
+  return \%config;
 }
 
 =head2 MediaWiki::API->login( $query_hashref )

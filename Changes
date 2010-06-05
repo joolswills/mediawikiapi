@@ -1,5 +1,10 @@
 Revision history for MediaWiki-API
 
+0.32    2010-06-05
+        Config options passed when creating a new instance of the mediawiki api object were overwritten with default
+        values. Now fixed. Thanks to Brian for reporting this problem. Note the version number has been bumped twice
+        since I forgot to update this changes file for 0.31. oops.
+
 0.30    2010-04-08
         MediaWiki >= 1.15.3 and MediaWiki >= 1.16.0beta2 now require a login token to be sent when logging in. Please
         see https://bugzilla.wikimedia.org/show_bug.cgi?id=23076 for more details. The MediaWiki::API login method is
