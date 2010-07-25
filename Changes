@@ -1,5 +1,13 @@
 Revision history for MediaWiki-API
 
+0.34    2010-07-25
+        if skip_encoding encoding was used in conjuctions with use_http_get the querystring was not correctly encoded
+        (parameters were not treated as utf8). Thanks to Nikolay Shaplov for reporting the problem.
+
+0.33    2010-06-09
+        Download function checked for image description, instead of checking for imageinfo. This mean't that some
+        images were not downloaded. Thanks to "ke" for reporting this problem
+
 0.32    2010-06-05
         Config options passed when creating a new instance of the mediawiki api object were overwritten with default
         values. Now fixed. Thanks to Brian for reporting this problem. Note the version number has been bumped twice

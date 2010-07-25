@@ -40,11 +40,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.32
+Version 0.34
 
 =cut
 
-our $VERSION  = "0.32";
+our $VERSION  = "0.34";
 
 =head1 SYNOPSIS
 
@@ -322,7 +322,7 @@ sub api {
       # edit, move, action = rollback, action = undelete, action = 
       my $response;
       if ( $self->{config}->{use_http_get} && defined $get_actions->{$query->{action}} ) {
-        my $qs = _make_querystring( $query );
+        my $qs = _make_querystring( $query, $options->{skip_encoding} );
         $response = $self->{ua}->get( $self->{config}->{api_url} . $qs );
       } else {
         $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
@@ -706,8 +706,8 @@ sub download {
   # get the page id and the page hashref with title and revisions
   my ( $pageid, $pageref ) = each %{ $ref->{query}->{pages} };
 
-  # if the page is missing then return an empty string
-  return '' if ( defined $pageref->{missing} );
+  # if the image is missing then return an empty string
+  return '' unless ( defined $pageref->{imageinfo} );
 
   my $url = @{ $pageref->{imageinfo} }[0]->{url};
 
@@ -735,10 +735,15 @@ sub _encode_hashref_utf8 {
 
 # creates a querystring from a hashref
 sub _make_querystring {
-  my ($ref) = @_;
+  my ($ref, $skipenc) = @_;
   my @qs = ();
+  my $keyval;
   for my $key ( keys %{$ref} ) {
-    my $keyval = uri_escape($key) . '=' . uri_escape($ref->{$key});
+    if ( $skipenc ) {
+      $keyval = uri_escape_utf8($key) . '=' . uri_escape_utf8($ref->{$key});
+    } else {
+      $keyval = uri_escape($key) . '=' . uri_escape($ref->{$key});
+    }
     push(@qs, $keyval);
   }
   return '?' . join('&',@qs);
