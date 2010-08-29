@@ -1,5 +1,12 @@
 Revision history for MediaWiki-API
 
+0.35    2010-08-29
+        The module now is a little bit more intelligent about utf-8 strings. If you have the "use utf8" pragma set in
+        your code and pass utf-8 strings in the query, you no longer need to set the skip_encoding config option. The
+        option is only needed if you are passing utf-8 strings but the utf-8 flag is not set on the strings. Note that
+        this may not work correctly if the version of URI module is less than 1.36, and in that case you may well need
+        to specify skip_encoding still (The module does contains a workaround however for older URI versions).
+
 0.34    2010-07-25
         if skip_encoding encoding was used in conjuctions with use_http_get the querystring was not correctly encoded
         (parameters were not treated as utf8). Thanks to Nikolay Shaplov for reporting the problem.

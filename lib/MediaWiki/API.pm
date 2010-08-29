@@ -7,11 +7,14 @@ use strict;
 
 use LWP::UserAgent;
 use URI::Escape;
-use JSON;
 use Encode;
+use JSON;
+use JSON;
 use Carp;
 
+# just for debugging the module
 # use Data::Dumper;
+# use Devel::Peek;
 
 use constant {
   ERR_NO_ERROR => 0,
@@ -40,11 +43,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.34
+Version 0.35
 
 =cut
 
-our $VERSION  = "0.34";
+our $VERSION  = "0.35";
 
 =head1 SYNOPSIS
 
@@ -185,7 +188,7 @@ sub new {
 
   $self->{ua} = $ua;
 
-  my $json = JSON->new->utf8()->max_depth(10) ;
+  my $json = JSON->new->utf8(1);
   $self->{json} = $json;
 
   # initialise error code values
@@ -253,7 +256,7 @@ sub login {
 
 =head2 MediaWiki::API->api( $query_hashref, $options_hashref )
 
-Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}. MediaWiki::API uses the LWP::UserAgent module to send the http requests to the MediaWiki API. After any API call, the response object returned by LWP::UserAgent is available in $mw->{response};
+Call the MediaWiki API interface. Parameters are passed as a hashref which are described on the MediaWiki API page (http://www.mediawiki.org/wiki/API). returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}. MediaWiki::API uses the LWP::UserAgent module to send the http requests to the MediaWiki API. After any API call, the response object returned by LWP::UserAgent is available in $mw->{response}. This function will NOT modify the input query_hashref in any way.
 
   binmode STDOUT, ':utf8';
 
@@ -276,15 +279,32 @@ Call the MediaWiki API interface. Parameters are passed as a hashref which are d
     print "$_->{'*'}\n";
   }
 
-Parameters are encoded from perl strings to UTF-8 to be passed to Mediawiki automatically, which is normally what you would want. In case for any reason your parameters are already in UTF-8 you can skip the encoding by passing an option skip_encoding => 1 in the $options_hash. For example:
+MediaWiki's API uses UTF-8 and any 8 bit character string parameters are encoded automatically by the API call. If your parameters are already in UTF-8 this will be detected and the encoding will be skipped. If your parameters for some reason contain UTF-8 data but no UTF-8 flag is set (i.e. you did not use the "use utf8;" pragma) you should prevent re-encoding by passing an option skip_encoding => 1 in the $options_hash. For example:
 
-  # $data already contains utf-8 encoded wikitext
-  my $ref = $mw->api( { action => 'parse', text => $data }, { skip_encoding => 1 } );
+ my $mw = MediaWiki::API->new();
+ $mw->{config}->{api_url} = 'http://fr.wiktionary.org/w/api.php';
+
+ my $query = {action => 'query',
+   list => 'categorymembers',
+   cmlimit => 'max'};
+
+ $query->{cmtitle} ="Cat\x{e9}gorie:moyen_fran\x{e7}ais"; # latin1 string
+ $mw->list ( $query ); # ok 
+
+ $query->{cmtitle} = "Cat". pack("U", 0xe9)."gorie:moyen_fran".pack("U",0xe7)."ais"; # unicode string
+ $mw->list ( $query ); # ok
+
+ $query->{cmtitle} ="Cat\x{c3}\x{a9}gorie:moyen_fran\x{c3}\x{a7}ais";  # unicode data without utf-8 flag
+ # $mw->list ( $query ); # NOT OK
+ $mw->list ( $query, {skip_encoding => 1} ); # ok
 
 =cut
 
 sub api {
   my ($self, $query, $options) = @_;
+
+  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
+    unless $self->{config}->{api_url};
 
   my $get_actions = {
     'query' => 1,
@@ -293,19 +313,19 @@ sub api {
     'paraminfo' => 1
   };
 
-  unless ( $options->{skip_encoding} ) {
-    $self->_encode_hashref_utf8($query);
-  }
-
   my $retries = $self->{config}->{retries};
   my $maxlagretries = $self->{config}->{max_lag_retries};
 
+  $self->_encode_hashref_utf8($query, $options->{skip_encoding});
   $query->{maxlag} = $self->{config}->{max_lag} if defined $self->{config}->{max_lag}; 
-
-  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
-    unless $self->{config}->{api_url};
-
   $query->{format}='json';
+
+  # if the config is set to use GET we need to contruct a querystring. some actions are "POST" only -
+  # edit, move, action = rollback, action = undelete, action = 
+  my $querystring = '';
+  if ( $self->{config}->{use_http_get} && defined $get_actions->{$query->{action}} ){
+    $querystring = _make_querystring( $query );
+  }
 
   my $ref;
   while (1) {
@@ -318,12 +338,10 @@ sub api {
         sleep $self->{config}->{retry_delay};
       }
 
-      # if the config is set to use GET we need to contruct the querystring. some actions are "POST" only -
-      # edit, move, action = rollback, action = undelete, action = 
       my $response;
-      if ( $self->{config}->{use_http_get} && defined $get_actions->{$query->{action}} ) {
-        my $qs = _make_querystring( $query, $options->{skip_encoding} );
-        $response = $self->{ua}->get( $self->{config}->{api_url} . $qs );
+      # if we are using the get method ($querystring is set above)
+      if ( $querystring ) {
+        $response = $self->{ua}->get( $self->{config}->{api_url} . $querystring );
       } else {
         $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
       }
@@ -415,7 +433,7 @@ sub logout {
 
 =head2 MediaWiki::API->edit( $query_hashref, $options_hashref )
 
-A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Changing_wiki_content). Note that you need $wgEnableWriteAPI = true in your LocalSettings.php to use these features.
+A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Changing_wiki_content). Note that you need $wgEnableWriteAPI = true in your LocalSettings.php to use these features. This function will modify the input hashref.
 
 Currently only
 
@@ -539,7 +557,7 @@ sub get_page {
 
 =head2 MediaWiki::API->list( $query_hashref, $options_hashref )
 
-A helper function for getting lists using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists).
+A helper function for getting lists using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Query_-_Lists). This function modifies the input query_hashref.
 
 This function will return a reference to an array of hashes or undef on failure. It handles getting lists of data from the MediaWiki api, continuing the request with another connection if needed. The options_hashref currently has three parameters:
 
@@ -724,26 +742,37 @@ sub download {
   return $response->decoded_content;
 }
 
-# encodes a hash (passed by reference) to utf-8
+# returns a copy of a hash (passed by reference) encoded to utf-8
 # used to encode parameters before being passed to the api
 sub _encode_hashref_utf8 {
-  my ($self, $ref) = @_;
+  my $uriver = $URI::VERSION;
+  my ($self, $ref, $skipenc) = @_;
   for my $key ( keys %{$ref} ) {
-    $ref->{$key} = encode_utf8( $ref->{$key} ) if defined $ref->{$key};
+    # skip to next item if no value defined
+    next unless defined $ref->{$key};
+    # if we don't want to skip encoding and the item doesn't already have the utf8 flag set, or we are using
+    # an older version of URI.pm that doesn't handle the encoding correctly then we need to encode to utf8
+    if ( ! $skipenc && ( ! utf8::is_utf8($ref->{$key}) || $URI::VERSION < 1.36) ) {
+      $ref->{$key} = Encode::encode_utf8($ref->{$key});
+    }
+    # turn on the utf8 flag so the URI module knows what to do with it (and so we don't re-encode when we don't need to)
+    # if we are using a new enough version of URI that will handle the encoding correctly.
+    # so what you get is :
+    # URI <  1.36 - utf8 encoded string without utf8 flag (works)
+    # URI >= 1.36 - utf8 encoded string with utf8 flag (works)
+    Encode::_utf8_on($ref->{$key}) if $URI::VERSION >= 1.36;
   }
+
+  return $ref;
 }
 
-# creates a querystring from a hashref
+# creates a querystring from a utf-8 hashref
 sub _make_querystring {
-  my ($ref, $skipenc) = @_;
+  my ($ref) = @_;
   my @qs = ();
   my $keyval;
   for my $key ( keys %{$ref} ) {
-    if ( $skipenc ) {
-      $keyval = uri_escape_utf8($key) . '=' . uri_escape_utf8($ref->{$key});
-    } else {
-      $keyval = uri_escape($key) . '=' . uri_escape($ref->{$key});
-    }
+    $keyval = uri_escape_utf8($key) . '=' . uri_escape_utf8($ref->{$key});
     push(@qs, $keyval);
   }
   return '?' . join('&',@qs);
