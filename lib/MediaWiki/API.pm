@@ -9,7 +9,6 @@ use LWP::UserAgent;
 use URI::Escape;
 use Encode;
 use JSON;
-use JSON;
 use Carp;
 
 # just for debugging the module
