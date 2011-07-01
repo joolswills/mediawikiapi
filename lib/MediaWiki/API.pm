@@ -297,6 +297,14 @@ MediaWiki's API uses UTF-8 and any 8 bit character string parameters are encoded
  # $mw->list ( $query ); # NOT OK
  $mw->list ( $query, {skip_encoding => 1} ); # ok
 
+If you are calling an API function which requires a file upload, e.g. import or upload, pass upload => 1 in the $options hash and specify the file to upload as an arrayref containing the local filename.
+
+ $mw->api( {
+   action => 'import',
+   xml => ['wiki_dump.xml'],
+  },
+  { upload => 1 } );
+
 =cut
 
 sub api {
@@ -338,11 +346,13 @@ sub api {
       }
 
       my $response;
+      my %headers;
       # if we are using the get method ($querystring is set above)
       if ( $querystring ) {
-        $response = $self->{ua}->get( $self->{config}->{api_url} . $querystring );
+        $response = $self->{ua}->get( $self->{config}->{api_url} . $querystring, %headers );
       } else {
-        $response = $self->{ua}->post( $self->{config}->{api_url}, $query );
+        $headers{'content-type'} = 'form-data' if $options->{upload};
+        $response = $self->{ua}->post( $self->{config}->{api_url}, $query, %headers );
       }
       $self->{response} = $response;
       
@@ -747,9 +757,9 @@ sub _encode_hashref_utf8 {
   my $uriver = $URI::VERSION;
   my ($self, $ref, $skipenc) = @_;
   for my $key ( keys %{$ref} ) {
-    # skip to next item if no value defined
-    next unless defined $ref->{$key};
-    # if we don't want to skip encoding and the item doesn't already have the utf8 flag set, or we are using
+    # skip to next item if no value defined or the item is a ref (i.e. a file upload)
+    next unless defined $ref->{$key} || ref($ref->{$key});
+    # if we don't want to skip encoding and the item doesn't already have the utf8 flag set or we are using
     # an older version of URI.pm that doesn't handle the encoding correctly then we need to encode to utf8
     if ( ! $skipenc && ( ! utf8::is_utf8($ref->{$key}) || $URI::VERSION < 1.36) ) {
       $ref->{$key} = Encode::encode_utf8($ref->{$key});
@@ -902,6 +912,8 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 =item * Jason 'XtC' Skelly (xtc [at] amigaguide.org) for moral support
 
 =item * Nikolay Shaplov (n [at] shaplov.ru) for utf-8 patches and testing
+
+=item * Jeremy Muhlich (jmuhlich [at] bitflood.org) for utf-8 patches and testing for api upload support patch
 
 =back
 
