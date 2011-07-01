@@ -3,12 +3,8 @@
 use strict;
 use warnings;
 
-use Test::More tests => 10;
-use Data::Dumper;
-
-BEGIN {
-  use_ok( 'MediaWiki::API' );
-}
+use Test::More;
+use LWP::UserAgent;
 
 sub read_binary {
   my $file = shift;
@@ -22,12 +18,31 @@ sub read_binary {
   return $data;
 }
 
-my $mw = MediaWiki::API->new( { api_url => 'http://testwiki.exotica.org.uk/mediawiki/api.php' }  );
-$mw->{config}->{upload_url} = 'http://testwiki.exotica.org.uk/wiki/Special:Upload';
-my $ref;
+sub get_url {
+  my $url = shift;
+  my $ua = LWP::UserAgent->new;
+  $ua->timeout(10);
+  $ua->env_proxy;
+  my $response = $ua->get($url);
+  return $response;
+}
 
+my $api_url = 'http://testwiki.exotica.org.uk/mediawiki/api.php';
+
+my $response = get_url($api_url);
+
+if ($response->is_success) {
+  plan tests => 10;
+} else {
+  plan skip_all => "Can't access $api_url to run tests";
+}
+
+use_ok( 'MediaWiki::API' );
+my $mw = MediaWiki::API->new( { api_url => $api_url }  );
 isa_ok( $mw, 'MediaWiki::API' );
+$mw->{config}->{upload_url} = 'http://testwiki.exotica.org.uk/wiki/Special:Upload';
 
+my $ref;
 ok ( $ref = $mw->api( {
   action => 'query',
   meta => 'siteinfo'
@@ -71,7 +86,5 @@ ok ( $mw->upload( {
   "->upload $title"
   );
 
-
-
-
+done_testing();
 
