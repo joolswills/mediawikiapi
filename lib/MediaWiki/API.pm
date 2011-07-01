@@ -901,6 +901,8 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 
 =item * Jason 'XtC' Skelly (xtc [at] amigaguide.org) for moral support
 
+=item * Nikolay Shaplov (n [at] shaplov.ru) for utf-8 patches and testing
+
 =back
 
 =head1 COPYRIGHT & LICENSE
