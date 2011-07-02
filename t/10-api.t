@@ -32,7 +32,7 @@ my $api_url = 'http://testwiki.exotica.org.uk/mediawiki/api.php';
 my $response = get_url($api_url);
 
 if ($response->is_success) {
-  plan tests => 10;
+  plan tests => 12;
 } else {
   plan skip_all => "Can't access $api_url to run tests";
 }
@@ -76,15 +76,46 @@ ok ( $ref = $mw->get_page( { title => $title } ), "->get_page $title call" );
 
 is ( $ref->{'*'}, $content, "->get_page $title content" );
 
+ok ( $mw->edit( {
+  action => 'move',
+  from => $title,
+  to  => $title . '-moved',
+  summary => 'MediaWiki::API Test suite - move page',
+  bot => 1
+  } ),
+  '->edit action=move ' . $title 
+  );
+
+$title = $title . '-moved';
+ok ( $mw->edit( {
+  action => 'delete',
+  title => $title,
+  summary => 'MediaWiki::API Test suite - delete page',
+  bot => 1
+  } ),
+  '->edit action=delete ' . $title
+  );
+
 $title = "apitest - $time.png";
 ok ( my $data = read_binary('t/testimage.png'), 'read image data');
 ok ( $mw->upload( {
   title => $title,
-  summary => 'MediaWiki::API Test suite - upload image',
+  summary => 'MediaWiki::API Test suite - upload image (old api)',
   data => $data
   } ),
   "->upload $title"
   );
+
+ok ( $mw->edit( {
+  action => 'upload',
+  filename => 't/testimage.png',
+  comment => 'MediaWiki::API Test suite - upload image',
+  file => [ 't/testimage.png'],
+  ignorewarnings => 1,
+  } ),
+  "->edit action=upload $title"
+  );
+
 
 done_testing();
 
