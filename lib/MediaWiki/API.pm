@@ -297,13 +297,22 @@ MediaWiki's API uses UTF-8 and any 8 bit character string parameters are encoded
  # $mw->list ( $query ); # NOT OK
  $mw->list ( $query, {skip_encoding => 1} ); # ok
 
-If you are calling an API function which requires a file upload, e.g. import or upload, pass upload => 1 in the $options hash and specify the file to upload as an arrayref containing the local filename.
+If you are calling an API function which requires a file upload, e.g. import or upload, specify the file to upload as an arrayref containing the local filename. The API may return a warning, for example to say the file is a duplicate. To ignore warnings and force an upload, use ignorewarnings => 1. All the parameters as with everything else can be found on the
+MediaWiki API page.
 
  $mw->api( {
    action => 'import',
    xml => ['wiki_dump.xml'],
-  },
-  { upload => 1 } );
+  } );
+
+You can also give the data to be uploaded directly, should you want to read the data in yourself. In this case, supply an arrayref with three parameters, starting with an "undef", followed by the filename, and then a Content => $data pair containing the data.
+
+ $mw->api( {
+   action => 'upload',
+   filename => 'test.png',
+   comment => 'a test image',
+   file => [ undef, 'test.png', Content => $data ],
+  } );
 
 =cut
 
@@ -351,7 +360,7 @@ sub api {
       if ( $querystring ) {
         $response = $self->{ua}->get( $self->{config}->{api_url} . $querystring, %headers );
       } else {
-        $headers{'content-type'} = 'form-data' if $options->{upload};
+        $headers{'content-type'} = 'form-data' if $query->{action} eq 'upload' || $query->{action} eq 'import';
         $response = $self->{ua}->post( $self->{config}->{api_url}, $query, %headers );
       }
       $self->{response} = $response;
@@ -444,17 +453,25 @@ sub logout {
 
 A helper function for doing edits using the MediaWiki API. Parameters are passed as a hashref which are described on the MediaWiki API editing page (http://www.mediawiki.org/wiki/API:Changing_wiki_content). Note that you need $wgEnableWriteAPI = true in your LocalSettings.php to use these features. This function will modify the input hashref.
 
-Currently only
+Currently
 
 =over
 
 =item * Create/Edit pages (Mediawiki >= 1.13 )
 
-=item * Move pages  (Mediawiki >= 1.12 )
+=item * Move pages (Mediawiki >= 1.12 )
 
-=item * Rollback  (Mediawiki >= 1.12 )
+=item * Rollback (Mediawiki >= 1.12 )
 
-=item * Delete pages  (Mediawiki >= 1.12 )
+=item * Delete pages (Mediawiki >= 1.12 )
+
+=item * Upload images (Mediawiki >= 1.16 )
+
+=item * Import pages (Mediawiki >= 1.15 )
+
+=item * (Un)protect pages (Mediawiki >= 1.12 )
+
+=item * (Un)block users (Mediawiki >= 1.12 )
 
 =back
 
@@ -504,7 +521,7 @@ The following scrippet rolls back one or more edits from user MrVandal. If the u
 sub edit {
   my ($self, $query, $options) = @_;
 
-  # gets and sets a token for the specific action (different tokens for different edit actions such as rollback/delete etc). Also sets the timestamp for edits to avoid conflicts.
+  # gets and sets a token for the specific action (different tokens for different edit actions such as rollback/delete etc).
   return undef unless ( $self->_get_set_tokens( $query ) );
 
   # do the edit
@@ -652,6 +669,9 @@ sub list {
 
 =head2 MediaWiki::API->upload( $params_hashref )
 
+This function is deprecated. For uploading on mediawiki versions 1.16 or later, you are recommended to use MediaWiki::API->edit or MediaWiki::API->api directly, which has much better
+error handling, and supports uploading files by just passing a filename.
+
 A function to upload files to a MediaWiki. This function does not use the MediaWiki API currently as support for file uploading is not yet implemented. Instead it uploads using the Special:Upload page, and as such an additional configuration value is needed.
 
   my $mw = MediaWiki::API->new( {
@@ -681,6 +701,25 @@ Error checking is limited. Also note that the module will force a file upload, i
 sub upload {
   my ($self, $params) = @_;
 
+  # get the version of mediawiki running, and if less than 1.16 use the old upload mechanism
+  my $mwver = $self->_get_version;
+  $mwver =~ /(\d+)\.(\d+)/;
+  if ( $1 == 1 && $2 < 16 ) {
+    return $self->_upload_old($params);
+  }
+
+  my $query;
+  $query->{action} = 'upload';
+  $query->{filename} = $params->{title};
+  $query->{comment} = $params->{summary};
+  $query->{file} = [ undef, $params->{title}, Content => $params->{data} ];
+  $query->{ignorewarnings} = 1;
+  return $self->edit($query);
+}
+
+sub _upload_old {
+  my ($self, $params) = @_;
+
   return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki Special:Upload page.") unless $self->{config}->{upload_url};
 
   my $response = $self->{ua}->post(
@@ -697,7 +736,6 @@ sub upload {
 
   return $self->_error(ERR_UPLOAD,"There was a problem uploading the file - $params->{title}") unless ( $response->code == 302 );
   return 1;
-
 }
 
 =head2 MediaWiki::API->download( $params_hashref )
@@ -751,6 +789,21 @@ sub download {
   return $response->decoded_content;
 }
 
+# returns the version of mediawiki being run 
+sub _get_version {
+  my ($self) = @_;
+  return $self->{config}->{mw_ver} if exists( $self->{config}->{mw_ver} );
+  return undef unless my $ref = $self->api(
+    {
+      action => 'query',
+      meta   => 'siteinfo'
+    } );
+  my $mwver = $ref->{query}->{general}->{generator};
+  $mwver =~ s/.+?(\d+\.\d+).*/$1/;
+  $self->{config}->{mw_ver} = $mwver;
+  return $mwver;
+}
+
 # returns a copy of a hash (passed by reference) encoded to utf-8
 # used to encode parameters before being passed to the api
 sub _encode_hashref_utf8 {
@@ -758,7 +811,7 @@ sub _encode_hashref_utf8 {
   my ($self, $ref, $skipenc) = @_;
   for my $key ( keys %{$ref} ) {
     # skip to next item if no value defined or the item is a ref (i.e. a file upload)
-    next unless defined $ref->{$key} || ref($ref->{$key});
+    next if ! defined $ref->{$key} || ref($ref->{$key});
     # if we don't want to skip encoding and the item doesn't already have the utf8 flag set or we are using
     # an older version of URI.pm that doesn't handle the encoding correctly then we need to encode to utf8
     if ( ! $skipenc && ( ! utf8::is_utf8($ref->{$key}) || $URI::VERSION < 1.36) ) {
@@ -791,7 +844,19 @@ sub _make_querystring {
 sub _get_set_tokens {
   my ($self, $query) = @_;
   my ($prop, $title, $token);
+  
   my $action = $query->{action};
+
+  if ( $action eq 'move' ) {
+    $title = $query->{from};
+  } else {
+    $title = $query->{title};
+  }
+
+  if ( $action eq 'upload' ) {
+    $action = 'edit';
+    $title = $query->{filename};
+  }
 
   # check if we have a cached token.
   if ( exists( $self->{config}->{tokens}->{$action} ) ) {
@@ -801,22 +866,13 @@ sub _get_set_tokens {
 
   # set the properties we want to extract based on the action
   if ( $action eq 'rollback' ) {
-    $prop = 'revisions' 
+    $prop = 'revisions'; 
   } else {
-    $prop = 'info'
+    $prop = 'info';
   }
 
-  if ( $action eq 'move' ) {
-    $title = $query->{from};
-  } else {
-    $title = $query->{title};
-  }
-
-  if ( $action eq 'rollback' ) {
-    $token = 'rvtoken';
-  } else {
-    $token = 'intoken';
-  }
+  $token = 'intoken';
+  $token = 'rvtoken' if ( $action eq 'rollback' );
 
   return undef unless ( my $ref = $self->api( { action => 'query', prop => $prop, $token => $action, titles => $title } ) );
 
