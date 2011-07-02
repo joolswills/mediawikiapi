@@ -800,10 +800,11 @@ sub _get_set_tokens {
   }
 
   # set the properties we want to extract based on the action
-  # for edit we want to get the datestamp of the last revision also to avoid edit conflicts
-  $prop = 'info|revisions' if ( $action eq 'edit' );
-  $prop = 'info' if ( $action eq 'move' or $action eq 'delete' );
-  $prop = 'revisions' if ( $query->{action} eq 'rollback' );
+  if ( $action eq 'rollback' ) {
+    $prop = 'revisions' 
+  } else {
+    $prop = 'info'
+  }
 
   if ( $action eq 'move' ) {
     $title = $query->{from};
@@ -817,7 +818,7 @@ sub _get_set_tokens {
     $token = 'intoken';
   }
 
-  return undef unless ( my $ref = $self->api( { action => 'query', prop => 'info|revisions', $token => $action, titles => $title } ) );
+  return undef unless ( my $ref = $self->api( { action => 'query', prop => $prop, $token => $action, titles => $title } ) );
 
   my ($pageid, $pageref) = each %{ $ref->{query}->{pages} };
 
