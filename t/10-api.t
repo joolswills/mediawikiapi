@@ -6,18 +6,6 @@ use warnings;
 use Test::More;
 use LWP::UserAgent;
 
-sub read_binary {
-  my $file = shift;
-  open FILE, $file or return 0;
-  binmode FILE;
-  my ($buffer, $data);
-  while ( read(FILE, $buffer, 16384) )  {
-    $data .= $buffer;
-  }
-  close(FILE);
-  return $data;
-}
-
 sub get_url {
   my $url = shift;
   my $ua = LWP::UserAgent->new;
@@ -32,7 +20,7 @@ my $api_url = 'http://testwiki.exotica.org.uk/mediawiki/api.php';
 my $response = get_url($api_url);
 
 if ($response->is_success) {
-  plan tests => 12;
+  plan tests => 11;
 } else {
   plan skip_all => "Can't access $api_url to run tests";
 }
@@ -97,25 +85,15 @@ ok ( $mw->edit( {
   );
 
 $title = "apitest - $time.png";
-ok ( my $data = read_binary('t/testimage.png'), 'read image data');
-ok ( $mw->upload( {
-  title => $title,
-  summary => 'MediaWiki::API Test suite - upload image (old api)',
-  data => $data
-  } ),
-  "->upload $title"
-  );
-
 ok ( $mw->edit( {
   action => 'upload',
-  filename => 't/testimage.png',
+  filename => $title,
   comment => 'MediaWiki::API Test suite - upload image',
   file => [ 't/testimage.png'],
   ignorewarnings => 1,
   } ),
   "->edit action=upload $title"
   );
-
 
 done_testing();
 
