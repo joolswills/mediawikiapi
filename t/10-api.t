@@ -91,6 +91,7 @@ ok ( $mw->edit( {
   comment => 'MediaWiki::API Test suite - upload image',
   file => [ 't/testimage.png'],
   ignorewarnings => 1,
+  bot => 1
   } ),
   "->edit action=upload $title"
   );

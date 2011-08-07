@@ -42,11 +42,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.35
+Version 0.36
 
 =cut
 
-our $VERSION  = "0.35";
+our $VERSION  = "0.36";
 
 =head1 SYNOPSIS
 
@@ -297,15 +297,26 @@ MediaWiki's API uses UTF-8 and any 8 bit character string parameters are encoded
  # $mw->list ( $query ); # NOT OK
  $mw->list ( $query, {skip_encoding => 1} ); # ok
 
-If you are calling an API function which requires a file upload, e.g. import or upload, specify the file to upload as an arrayref containing the local filename. The API may return a warning, for example to say the file is a duplicate. To ignore warnings and force an upload, use ignorewarnings => 1. All the parameters as with everything else can be found on the
-MediaWiki API page.
+If you are calling an API function which requires a file upload, e.g. import or upload, specify the file to upload as an arrayref containing the local filename. The API may return a warning, for example to say the file is a duplicate. To ignore warnings and force an upload, use ignorewarnings => 1. All the parameters as with everything else can be found on the MediaWiki API page.
 
  $mw->api( {
    action => 'import',
-   xml => ['wiki_dump.xml'],
+   xml => ['wiki_dump.xml']
+  } );
+
+ $mw->api( {
+   action => 'upload',
+   filename => 'test.png',
+   comment => 'a test image',
+   file => ['test.png'],
   } );
 
 You can also give the data to be uploaded directly, should you want to read the data in yourself. In this case, supply an arrayref with three parameters, starting with an "undef", followed by the filename, and then a Content => $data pair containing the data.
+
+ $mw->api( {
+   action => 'import',
+   xml => [ undef, 'wiki_dump.xml', Content => $data ]
+  } );
 
  $mw->api( {
    action => 'upload',

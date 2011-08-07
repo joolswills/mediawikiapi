@@ -23,6 +23,11 @@ To install this module, run the following commands:
     make test
     make install
 
+Note: make test will make some edits on http://testwiki.exotica.org.uk/wiki/Main_Page
+to check that it is working correctly. This will leave some data (including ip address)
+on the wiki (which is cleaned regularly). If you do not want this, please skip the
+"make test".
+
 CREATING DEBIAN PACKAGE / INSTALLING ON DEBIAN
 
 Please note that Debian squeeze and Ubuntu Karmic already have a package
@@ -64,7 +69,7 @@ You can also look for information at:
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2009 Jools Wills
+Copyright (C) 2009 - 2011 Jools Wills
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

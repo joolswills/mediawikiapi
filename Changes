@@ -1,5 +1,17 @@
 Revision history for MediaWiki-API
 
+0.36    2011-08-07
+        Since 1.16 MediaWiki now supports uploading files via the API, we no longer need to post directly to
+        Special:Upload. Although now the MediaWiki::API->Upload function will use the api to upload if using a
+        recent mediawiki, it has also been deprecated, as uploads can be done directly via the MediaWiki::API->API
+        call, or if you prefer MediaWiki::API->Edit (where it will automatically get a token for you). Thanks to
+        Jeremy Muhlich for the original patch. Some details about uploading files via the API / Edit calls can be
+        found in the API section of the pod documentation. 
+        
+        There are now some tests included with the module. They run a few api functions against a test wiki -
+        http://testwiki.exotica.org.uk to make sure everything is working correctly. Feel free to use this wiki for
+        testing the module with your own code also. It is wiped/cleaned regularly.
+
 0.35    2010-08-29
         The module now is a little bit more intelligent about utf-8 strings. If you have the "use utf8" pragma set in
         your code and pass utf-8 strings in the query, you no longer need to set the skip_encoding config option. The
@@ -13,7 +25,7 @@ Revision history for MediaWiki-API
         (parameters were not treated as utf8). Thanks to Nikolay Shaplov for reporting the problem.
 
 0.33    2010-06-09
-        Download function checked for image description, instead of checking for imageinfo. This mean't that some
+        Download function checked for image description, instead of checking for imageinfo. This meant that some
         images were not downloaded. Thanks to "ke" for reporting this problem
 
 0.32    2010-06-05

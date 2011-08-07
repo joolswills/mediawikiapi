@@ -5,5 +5,7 @@ Makefile.PL
 README
 lib/MediaWiki/API.pm
 t/00-load.t
+t/10-api.t
 t/98-pod-coverage.t
 t/99-pod.t
+t/testimage.png
