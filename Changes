@@ -1,5 +1,9 @@
 Revision history for MediaWiki-API
 
+0.37    2011-08-07
+        The MediaWiki::API->Edit call was not getting a token correctly for an import action. Thanks to Mike Lifeguard
+        for the report.
+
 0.36    2011-08-07
         Since 1.16 MediaWiki now supports uploading files via the API, we no longer need to post directly to
         Special:Upload. Although now the MediaWiki::API->Upload function will use the api to upload if using a

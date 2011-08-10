@@ -42,11 +42,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.36
+Version 0.37
 
 =cut
 
-our $VERSION  = "0.36";
+our $VERSION  = "0.37";
 
 =head1 SYNOPSIS
 
@@ -875,6 +875,16 @@ sub _get_set_tokens {
     return 1;
   }
 
+  # if we are doing an import, get the edit token using Main_Page as API docs suggest.
+  if ( $action eq 'import' ) {
+    # if a title is supplied use that page to get the edit token instead of Main_Page
+    if ( defined $query->{title} ) {
+      $title = $query->{title};
+    } else {
+      $title = "Main_Page";
+    }
+  }
+
   # set the properties we want to extract based on the action
   if ( $action eq 'rollback' ) {
     $prop = 'revisions'; 
@@ -890,7 +900,9 @@ sub _get_set_tokens {
   my ($pageid, $pageref) = each %{ $ref->{query}->{pages} };
 
   # if the page doesn't exist and we aren't editing/creating a new page then return an error
-  return $self->_error( ERR_EDIT, "Unable to $action page '$title'. Page does not exist.") if ( defined $pageref->{missing} && $action ne 'edit' );
+  if ( defined $pageref->{missing} && $action ne 'edit' && $action ne 'import' ) {
+    return $self->_error( ERR_EDIT, "Unable to $action page '$title'. Page does not exist.") 
+  }
 
   if ( $action eq 'rollback' ) {
     $query->{token} = @{ $pageref->{revisions} }[0]->{$action.'token'};
@@ -903,7 +915,8 @@ sub _get_set_tokens {
 
   return $self->_error( ERR_EDIT, "Unable to get an edit token for action '$action'." ) unless ( defined $query->{token} );
 
-  # cache the token. rollback tokens are specific for the page name and last edited user so can not be cached.
+  # cache the token. rollback tokens are specific for the page name and last edited user so can not be cached. Note that although currently many of the tokens
+  # are equivalent, we cache them separately in case this was to change.
   if ( $action ne 'rollback' ) {
     $self->{config}->{tokens}->{$action} = $query->{token};
   }
@@ -987,7 +1000,7 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 - 2010 Jools Wills, all rights reserved.
+Copyright 2008 - 2011 Jools Wills, all rights reserved.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
