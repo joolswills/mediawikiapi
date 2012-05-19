@@ -330,7 +330,7 @@ You can also give the data to be uploaded directly, should you want to read the 
 sub api {
   my ($self, $query, $options) = @_;
 
-  return $self->_error(ERR_CONFIG,"You need to give the URL to the mediawiki API php.")
+  return $self->_error(ERR_CONFIG, "You need to give the URL to the mediawiki API php.")
     unless $self->{config}->{api_url};
 
   my $get_actions = {
