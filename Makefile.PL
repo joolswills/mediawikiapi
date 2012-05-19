@@ -10,7 +10,7 @@ WriteMakefile(
     LICENSE             => 'GPL-3+',
     PL_FILES            => {},
     PREREQ_PM => {
-        'Test::More'     => 0,
+        'Test::More'     => 0.98,
         'JSON'           => 0,
         'LWP::UserAgent' => 0,
         'Encode'         => 0,
