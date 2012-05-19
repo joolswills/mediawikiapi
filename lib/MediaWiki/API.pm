@@ -211,6 +211,13 @@ sub _get_config_defaults {
   $config{max_lag_delay} = DEF_MAX_LAG_DELAY;
   
   $config{use_http_get} = USE_HTTP_GET;
+  
+  $config{get_actions} = {
+    'query' => 1,
+    'logout' => 1,
+    'purge' => 1,
+    'paraminfo' => 1
+  };
 
   return \%config;
 }
@@ -333,13 +340,6 @@ sub api {
   return $self->_error(ERR_CONFIG, "You need to give the URL to the mediawiki API php.")
     unless $self->{config}->{api_url};
 
-  my $get_actions = {
-    'query' => 1,
-    'logout' => 1,
-    'purge' => 1,
-    'paraminfo' => 1
-  };
-
   my $retries = $self->{config}->{retries};
   my $maxlagretries = $self->{config}->{max_lag_retries};
 
@@ -350,7 +350,7 @@ sub api {
   # if the config is set to use GET we need to contruct a querystring. some actions are "POST" only -
   # edit, move, action = rollback, action = undelete, action = 
   my $querystring = '';
-  if ( $self->{config}->{use_http_get} && defined $get_actions->{$query->{action}} ){
+  if ( $self->{config}->{use_http_get} && $self->{config}->{get_actions}->{$query->{action}} ) {
     $querystring = _make_querystring( $query );
   }
 
