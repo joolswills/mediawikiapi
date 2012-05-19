@@ -1,5 +1,14 @@
 Revision history for MediaWiki-API
 
+0.38    2012-05-29
+        Allow the actions the API supports with an http GET request to be configurable.
+        MediaWiki::API->{config}->{get_actions} defaults to { 'query' => 1, 'logout' => 1, purge' => 1, 'paraminfo' => 1 }
+        but can be added to/ammended as needed for any extensions that add additional functions to the API that support
+        a GET request.
+        
+        Make the version of Test::More required to be 0.98 to avoid an issue with older versions missing functionality
+        (eg. on centos 5.x).
+
 0.37    2011-08-10
         The MediaWiki::API->Edit call was not getting a token correctly for an import action. Thanks to Mike Lifeguard
         for the report.
