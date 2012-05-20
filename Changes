@@ -1,6 +1,10 @@
 Revision history for MediaWiki-API
 
-0.38    2012-05-29
+0.39    2012-05-20
+        Added automatic support for handling tokens in the MediaWiki::API->Edit function for (Un)watch, Send e-mail
+        and Patrol changes. (Un)watch already worked but wasn't documented.
+
+0.38    2012-05-19
         Allow the actions the API supports with an http GET request to be configurable.
         MediaWiki::API->{config}->{get_actions} defaults to { 'query' => 1, 'logout' => 1, purge' => 1, 'paraminfo' => 1 }
         but can be added to/ammended as needed for any extensions that add additional functions to the API that support
