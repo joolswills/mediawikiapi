@@ -1017,7 +1017,7 @@ L<http://search.cpan.org/dist/MediaWiki-API>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 - 2011 Jools Wills, all rights reserved.
+Copyright 2008 - 2012 Jools Wills, all rights reserved.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
