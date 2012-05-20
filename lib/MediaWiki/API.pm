@@ -486,6 +486,12 @@ Currently
 
 =item * (Un)block users (Mediawiki >= 1.12 )
 
+=item * (Un)watch a page (Mediawiki >= 1.18 )
+
+=item * Email user (Mediawiki >= 1.14 )
+
+=item * Patrol changes (Mediawiki >= 1.14 )
+
 =back
 
 are supported via this call. Use this call to edit pages without having to worry about getting an edit token from the API first. The function will cache edit tokens to speed up future edits (Except for rollback edits, which are not cachable).
@@ -862,13 +868,14 @@ sub _get_set_tokens {
 
   if ( $action eq 'move' ) {
     $title = $query->{from};
-  } else {
-    $title = $query->{title};
-  }
-
-  if ( $action eq 'upload' ) {
+  } elsif ( $action eq 'upload' ) {
     $action = 'edit';
     $title = $query->{filename};
+  } elsif ( $action eq 'emailuser' ) {
+    $action = 'email';
+    $title = 'User:' . $query->{target};
+  } else {
+    $title = $query->{title};
   }
 
   # check if we have a cached token.
@@ -897,7 +904,13 @@ sub _get_set_tokens {
   $token = 'intoken';
   $token = 'rvtoken' if ( $action eq 'rollback' );
 
-  return undef unless ( my $ref = $self->api( { action => 'query', prop => $prop, $token => $action, titles => $title } ) );
+  my $ref;
+  if ( $action eq 'patrol' ) {
+    $ref = $self->api( { action => 'query', list => 'recentchanges', rclimit => '1', rctoken => $action } );
+  } else {
+    $ref = $self->api( { action => 'query', prop => $prop, $token => $action, titles => $title } );
+  }
+  return undef unless $ref;
 
   my ($pageid, $pageref) = each %{ $ref->{query}->{pages} };
 
@@ -911,6 +924,8 @@ sub _get_set_tokens {
     my $lastuser = @{ $pageref->{revisions} }[0]->{user};
     $query->{user} = @{ $pageref->{revisions} }[0]->{user} unless defined $query->{user};
     return $self->_error( ERR_EDIT, "Unable to rollback edits from user '$query->{user}' for page '$title'. Last edit was made by user $lastuser" ) if ( $query->{user} ne $lastuser );
+  } elsif ( $action eq 'patrol' ) {
+    $query->{token} = @{$ref->{query}->{recentchanges}}[0]->{patroltoken};
   } else {
     $query->{token} = $pageref->{$action.'token'};
   }
