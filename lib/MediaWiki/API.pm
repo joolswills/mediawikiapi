@@ -795,7 +795,7 @@ sub download {
 
   my $url = @{ $pageref->{imageinfo} }[0]->{url};
 
-  unless ( $url =~ /^http\:\/\// ) {
+  unless ( $url =~ /^https?\:\/\// ) {
     return $self->_error(ERR_PARAMS,'The API returned a relative path. You need to configure the url where files are stored in {config}->{files_url}')
       unless ( defined $self->{config}->{files_url} );
     $url = $self->{config}->{files_url} . $url;
