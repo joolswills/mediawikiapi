@@ -1,5 +1,10 @@
 Revision history for MediaWiki-API
 
+0.40    2014-09-13
+        Apologies for the lack of updates and the speed to implement some fixes but I have been busy on other projects.
+        Edit token code has been reworked somewhat to make it simpler, and a bugfix applied for an issue with downloading
+        images over https using the buildin Download() function.
+
 0.39    2012-05-20
         Added automatic support for handling tokens in the MediaWiki::API->Edit function for (Un)watch, Send e-mail
         and Patrol changes. (Un)watch already worked but wasn't documented.
