@@ -343,7 +343,7 @@ sub api {
     unless $self->{config}->{api_url};
 
   my $retries = $self->{config}->{retries};
-  my $maxlagretries = $self->{config}->{max_lag_retries};
+  my $maxlagretries = 1;
 
   $self->_encode_hashref_utf8($query, $options->{skip_encoding});
   $query->{maxlag} = $self->{config}->{max_lag} if defined $self->{config}->{max_lag}; 
@@ -425,13 +425,11 @@ sub api {
 
     # check lag and wait
     if (ref($ref) eq 'HASH' && exists $ref->{error} && $ref->{error}->{code} eq 'maxlag' ) {
-      $ref->{'error'}->{'info'} =~ /: (\d+) seconds lagged/;
-      my $lag = $1;
-      if ($maxlagretries == 0) {
-        return $self->_error(ERR_API,"Server has reported lag above the configure max_lag value of " . $self->{config}->{max_lag} . " value after " .($maxlagretries+1)." attempt(s). Last reported lag was - ". $ref->{'error'}->{'info'})
+      if ($maxlagretries == $self->{config}->{max_lag_retries}) {
+        return $self->_error(ERR_API,"Server has reported lag above the configured max_lag value of " . $self->{config}->{max_lag} . " value after " . $self->{config}->{max_lag_retries} . " attempt(s). Last reported lag was - ". $ref->{'error'}->{'info'})
       } else {
         sleep $self->{config}->{max_lag_delay};
-        $maxlagretries-- if $maxlagretries > 0;
+        $maxlagretries++ if $maxlagretries < $self->{config}->{max_lag_retries};
         # redo the request
         next;
       }
