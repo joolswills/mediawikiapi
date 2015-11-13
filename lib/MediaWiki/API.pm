@@ -651,6 +651,8 @@ sub list {
 
   $options->{max} = 0 if ( !defined $options->{max} );
 
+  $query->{'rawcontinue'} = '';
+
   my $continue = 0;
   my $count = 0;
   do {
