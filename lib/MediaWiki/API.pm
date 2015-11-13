@@ -42,11 +42,11 @@ MediaWiki::API - Provides a Perl interface to the MediaWiki API (http://www.medi
 
 =head1 VERSION
 
-Version 0.39
+Version 0.41
 
 =cut
 
-our $VERSION  = "0.40";
+our $VERSION  = "0.41";
 
 =head1 SYNOPSIS
 
