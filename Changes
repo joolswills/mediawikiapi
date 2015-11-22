@@ -2,7 +2,7 @@ Revision history for MediaWiki-API
 
 0.41    2015-11-13
         When using the max_lag configuration, if max_lag_retries was reached - the reported number tries were incorrect.
-        Fixed up the api->list function not continuing due to lack of rawcontinue parameter that is needed after MediaSiki 1.26.
+        Fixed up the api->list function not continuing due to lack of rawcontinue parameter that is needed after MediaWiki 1.26.
         Thanks to Derbeth for the bug reports.
 
 0.40    2014-09-13
