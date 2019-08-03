@@ -10,9 +10,9 @@ use URI::Escape;
 use Encode;
 use JSON;
 use Carp;
+use Data::Dumper;
 
 # just for debugging the module
-# use Data::Dumper;
 # use Devel::Peek;
 
 use constant {
@@ -118,6 +118,8 @@ Configuration options are
 
 =item * no_proxy = Boolean; Set to 1 to Disable use of any proxy set in the environment. Note by default if you have proxy environment variables set, then the module will attempt to use them. This feature was added at version 0.29. Versions below this ignore any proxy settings, but you can set this yourself by doing MediaWiki::API->{ua}->env_proxy() after creating a new instance of the API class. More information about env_proxy can be found at http://search.cpan.org/~gaas/libwww-perl-5.834/lib/LWP/UserAgent.pm#Proxy_attributes
 
+=item * diagnostics = Boolean; Diagnostics will be printed to STDERR
+
 =back
 
 An example for the on_error configuration could be something like:
@@ -197,6 +199,7 @@ sub new {
   $self->{error}->{details} = '';
   $self->{error}->{stacktrace} = '';
 
+  $self->{diagnostics} = $config->{diagnostics};
   bless ($self, $class);
   return $self;
 }
@@ -221,7 +224,24 @@ sub _get_config_defaults {
     'paraminfo' => 1
   };
 
+  $config{diagnostics} = 0;
+
   return \%config;
+}
+
+sub _diag {
+    my ( $self, $msg ) = @_;
+
+    if ( $self->{diagnostics} ) {
+        for ($msg) {
+            s{\n}{\n# }gsmx;
+            s{(Doing|Returning).[\$]VAR1.=.}{$1 }smx;
+            s{;$}{}smx;
+        }
+
+        warn "# $msg\n";
+    }
+    return;
 }
 
 =head2 MediaWiki::API->login( $query_hashref )
@@ -344,6 +364,7 @@ sub api {
 
   my $retries = $self->{config}->{retries};
   my $maxlagretries = 1;
+  $self->_diag( 'Doing ' . Dumper($query) );
 
   $self->_encode_hashref_utf8($query, $options->{skip_encoding});
   $query->{maxlag} = $self->{config}->{max_lag} if defined $self->{config}->{max_lag}; 
@@ -364,6 +385,7 @@ sub api {
 
       # if we are already retrying, then wait the specified delay
       if ( $try > 0 ) {
+        $self->_diag('Sleeping before retry.');
         sleep $self->{config}->{retry_delay};
       }
 
@@ -371,9 +393,13 @@ sub api {
       my %headers;
       # if we are using the get method ($querystring is set above)
       if ( $querystring ) {
+        $self->_diag("GETting $querystring");
         $response = $self->{ua}->get( $self->{config}->{api_url} . $querystring, %headers );
       } else {
-        $headers{'content-type'} = 'form-data' if $query->{action} eq 'upload' || $query->{action} eq 'import';
+        if ( $query->{action} eq 'upload' || $query->{action} eq 'import' ) {
+          $self->_diag("'{$query->{action}}' uses form-data header");
+          $headers{'content-type'} = 'form-data';
+        }
         $response = $self->{ua}->post( $self->{config}->{api_url}, $query, %headers );
       }
       $self->{response} = $response;
@@ -381,15 +407,18 @@ sub api {
       # if the request was successful then check the returned content and decode.
       if ( $response->is_success ) {
         
+        $self->_diag('Successful request.');
         my $decontent = $response->decoded_content( charset => 'none' );
 
         if ( ! defined $decontent ) {
+          $self->_diag('Unable to decode HTTP content body');
           return $self->_error(ERR_HTTP,"Unable to decode content returned by $self->{config}->{api_url} - Unknown content encoding?")
             if ( $try == $retries );
           next;
-        }
+        }       
         
         if ( length $decontent == 0 ) {
+          $self->_diag('Zero-length content.');
           return $self->_error(ERR_HTTP,"$self->{config}->{api_url} returned a zero length string")
             if ( $try == $retries );
           next;
@@ -401,10 +430,14 @@ sub api {
         };
 
         if ( $@) {
+          $self->_diag("Failed to decode content: $decontent");
           # an error occurred, so we check if we need to retry and continue
           my $error = $@;
-          return $self->_error(ERR_HTTP,"Failed to decode JSON returned by $self->{config}->{api_url}\nDecoding Error:\n$error\nReturned Data:\n$decontent")
-            if ( $try == $retries );
+          if ( $try == $retries ) {
+              $self->_diag(
+                  'Retry limit reached without a successful response.');
+              return $self->_error(ERR_HTTP,"Failed to decode JSON returned by $self->{config}->{api_url}\nDecoding Error:\n$error\nReturned Data:\n$decontent")
+          }
           next;
         } else {
           # no error so we want out of the retry loop
@@ -417,23 +450,28 @@ sub api {
         return $self->_error(ERR_HTTP, $response->status_line . " : error occurred when accessing $self->{config}->{api_url} after " . ($try+1) . " attempt(s)")
           if ( $try == $retries );
         next;
-      }       
+      }
       
     }
 
-    return $self->_error(ERR_API,"API has returned an empty array reference. Please check your parameters") if ( ref($ref) eq 'ARRAY' && scalar @{$ref} == 0);
+    if ( ref($ref) eq 'ARRAY' && scalar @{$ref} == 0) {
+        $self->_diag('Empty array response.');
+        return $self->_error(ERR_API,"API has returned an empty array reference. Please check your parameters")
+    }
 
     # check lag and wait
     if (ref($ref) eq 'HASH' && exists $ref->{error} && $ref->{error}->{code} eq 'maxlag' ) {
-      if ($maxlagretries == $self->{config}->{max_lag_retries}) {
-        return $self->_error(ERR_API,"Server has reported lag above the configured max_lag value of " . $self->{config}->{max_lag} . " value after " . $self->{config}->{max_lag_retries} . " attempt(s). Last reported lag was - ". $ref->{'error'}->{'info'})
-      } else {
-        sleep $self->{config}->{max_lag_delay};
-        $maxlagretries++ if $maxlagretries < $self->{config}->{max_lag_retries};
-        # redo the request
-        next;
-      }
+        if ($maxlagretries == $self->{config}->{max_lag_retries}) {
+            $self->_diag('Reached limit for too much lag time');
+            return $self->_error(ERR_API,"Server has reported lag above the configured max_lag value of " . $self->{config}->{max_lag} . " value after " . $self->{config}->{max_lag_retries} . " attempt(s). Last reported lag was - ". $ref->{'error'}->{'info'})
+        } else {
+            sleep $self->{config}->{max_lag_delay};
+            $maxlagretries++ if $maxlagretries < $self->{config}->{max_lag_retries};
 
+            $self->_diag('Too much lag time, retrying');
+            # redo the request
+            next;
+        }
     }
 
     # if we got this far, then we have a hashref from the api and we want out of the while loop
@@ -441,8 +479,11 @@ sub api {
 
   }
 
-  return $self->_error(ERR_API,$ref->{error}->{code} . ": " . $ref->{error}->{info} ) if ( ref($ref) eq 'HASH' && exists $ref->{error} );
-
+  if ( ref($ref) eq 'HASH' && exists $ref->{error} ) {
+      $self->_diag( 'Error from server: ' . $ref->{error}->{info} );
+  } else {
+      $self->_diag( 'Returning ' . Dumper($ref) );
+  }
   return $ref;
 }
 
