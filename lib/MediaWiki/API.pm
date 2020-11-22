@@ -761,9 +761,9 @@ sub _upload_old {
 A function to download images/files from a MediaWiki. A file url may need to be configured if the api returns a relative URL.
 
   my $mw = MediaWiki::API->new( {
-    api_url => 'http://www.exotica.org.uk/mediawiki/api.php' }  );
+    api_url => 'https://www.exotica.org.uk/mediawiki/api.php' }  );
   # configure the file url. Wikipedia doesn't need this but the ExoticA wiki does.
-  $mw->{config}->{files_url} = 'http://www.exotica.org.uk';
+  $mw->{config}->{files_url} = 'https://www.exotica.org.uk';
 
 The download function is then called as follows
 
