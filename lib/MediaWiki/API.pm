@@ -239,19 +239,10 @@ sub login {
   my ($self, $query) = @_;
   $query->{action} = 'login';
   # attempt to login, and return undef if there was an api failure
-  return undef unless ( my $ref = $self->api( $query ) );
+  return undef unless ( my $ref = $self->edit( $query ) );
 
   # reassign hash reference to the login section
   my $login = $ref->{login};
-
-  # Do login token checking
-  if ( $login->{result} eq 'NeedToken' ) {
-    my $token = $login->{token};
-    $query->{lgtoken} = $token;
-    # Re-submit previous request with token
-    return undef unless ( $ref = $self->api( $query ) );
-    $login = $ref->{login};
-  }
 
   # return error if the login was not successful
   return $self->_error( ERR_LOGIN, 'Login Failure - ' . $login->{result} )
@@ -491,7 +482,7 @@ Currently
 
 =back
 
-are supported via this call. Use this call to edit pages without having to worry about getting an edit token from the API first. The function will cache edit tokens to speed up future edits (Except for rollback edits, which are not cachable).
+are supported via this call. Use this call to edit pages without having to worry about getting an edit token from the API first. The function will cache edit tokens to speed up future edits.
 
 Returns a hashref with the results of the call or undef on failure with the error code and details stored in MediaWiki::API->{error}->{code} and MediaWiki::API->{error}->{details}.
 
@@ -537,8 +528,31 @@ The following scrippet rolls back one or more edits from user MrVandal. If the u
 sub edit {
   my ($self, $query, $options) = @_;
 
-  # gets and sets a token for the specific action (different tokens for different edit actions such as rollback/delete etc).
-  return undef unless ( $self->_get_set_tokens( $query ) );
+  # choose token type and parameter name depending on action
+  # token types are createaccount, csrf, login, patrol, rollback, userrights, watch
+  my $action = $query->{action};
+  my $token_type = 'csrf';
+  my $token_param = 'token';
+
+  if ( $action eq 'createaccount' ) {
+    $token_type = 'createaccount';
+    $token_param = 'createtoken';
+  } elsif ( $action eq 'login' ) {
+    $token_type = 'login';
+    $token_param = 'lgtoken';
+  } elsif ( $action eq 'patrol' ) {
+    $token_type = 'patrol';
+  } elsif ( $action eq 'rollback' ) {
+    $token_type = 'rollback';
+  } elsif ( $action eq 'userrights' ) {
+    $token_type = 'userrights';
+  }
+
+  # get a token
+  return undef unless ( my $token = $self->_get_token( $token_type ) );
+
+  # set the token
+  $query->{$token_param} = $token;
 
   # do the edit
   return undef unless ( my $ref = $self->api( $query, $options ) );
@@ -858,76 +872,26 @@ sub _make_querystring {
   return '?' . join('&',@qs);
 }
 
-# gets a token for a specified parameter and sets it in the query for the call
-sub _get_set_tokens {
-  my ($self, $query) = @_;
+# gets a token from the API (https://www.mediawiki.org/wiki/API:Tokens)
+sub _get_token {
+  my ($self, $type) = @_;
 
-  # Note that although currently many of the tokens are equivalent, we cache them separately
-  # in case this was to change.
-  if ( exists( $self->{config}->{tokens}->{$query->{action}} ) ) {
-    $query->{token} = $self->{config}->{tokens}->{$query->{action}};
-    return 1;
-  }
+  # Check if we have this token cached
+  my $token = $self->{config}->{tokens}->{$type};
+  return $token if defined $token;
 
-  # set the token actions and title depending on edit action
-  my $tokaction = $query->{action};
-  my $title = $query->{title};
-  if ( $query->{action} eq 'move' ) {
-    $title = $query->{from};
-  } elsif ( $query->{action} eq 'upload' ) {
-    $tokaction = 'edit';
-    $title = $query->{filename};
-  } elsif ( $query->{action} eq 'emailuser' ) {
-    $tokaction = 'email';
-    $title = 'User:' . $query->{target};
-  } elsif ( $query->{action} eq 'import' ) {
-    # if title was not specified get the import token using Main_Page as API docs suggest.
-    $title = "Main_Page" unless defined $query->{title};
-  }
+  my $query = { action => 'query', meta => 'tokens', type => $type };
 
-  # set the properties and token name we want to extract based on the action
-  # may merge into above ifdef depending on other token implementations
-  my $prop = 'info';
-  my $token = 'intoken';
-  my $tokquery = { action => 'query', prop => $prop, $token => $tokaction, titles => $title };  
-  if ( $tokaction eq 'rollback' ) {
-    $prop = 'revisions';
-    $token = 'rvtoken';
-  } elsif ( $tokaction eq 'patrol' ) {
-    $tokquery = { action => 'query', list => 'recentchanges', rclimit => '1', rctoken => $tokaction };
-  }
+  return undef unless ( my $ref = $self->api( $query ) );
 
-  my $ref;
-  $ref = $self->api( $tokquery );
-  return undef unless $ref;
+  $token = $ref->{query}->{tokens}->{$type . 'token'};
 
-  my ($pageid, $pageref) = each %{ $ref->{query}->{pages} };
+  return $self->_error( ERR_EDIT, "Unable to get a $type token." ) unless ( defined $token );
 
-  # if the page doesn't exist and we aren't editing/creating a new page then return an error
-  if ( defined $pageref->{missing} && $tokaction ne 'edit' && $tokaction ne 'import' ) {
-    return $self->_error( ERR_EDIT, "Unable to $tokaction page '$title'. Page does not exist.") 
-  }
+  # cache the token
+  $self->{config}->{tokens}->{$type} = $token;
 
-  if ( $query->{action} eq 'rollback' ) {
-    $query->{token} = @{ $pageref->{revisions} }[0]->{$tokaction.'token'};
-    my $lastuser = @{ $pageref->{revisions} }[0]->{user};
-    $query->{user} = @{ $pageref->{revisions} }[0]->{user} unless defined $query->{user};
-    return $self->_error( ERR_EDIT, "Unable to rollback edits from user '$query->{user}' for page '$title'. Last edit was made by user $lastuser" ) if ( $query->{user} ne $lastuser );
-  } elsif ( $tokaction eq 'patrol' ) {
-    $query->{token} = @{$ref->{query}->{recentchanges}}[0]->{patroltoken};
-  } else {
-    $query->{token} = $pageref->{$tokaction.'token'};
-  }
-
-  return $self->_error( ERR_EDIT, "Unable to get an edit token for action '$tokaction'." ) unless ( defined $query->{token} );
-
-  # cache the token. rollback tokens are specific for the page name and last edited user so can not be cached. Note that although currently many of the tokens
-  # are equivalent, we cache them separately in case this was to change.
-  if ( $query->{action} ne 'rollback' ) {
-    $self->{config}->{tokens}->{$query->{action}} = $query->{token};
-  }
-
-  return 1;
+  return $token;
 }
 
 sub _error {
