@@ -1,7 +1,7 @@
 MediaWiki-API
 
 This module provides an interface between perl and the MediaWiki API
-(http://www.mediawiki.org/wiki/API) allowing creation of scripts to automate
+(https://www.mediawiki.org/wiki/API) allowing creation of scripts to automate
 editing and extraction of data from MediaWiki driven sites like Wikipedia.
 
 The latest source/development version is available at
