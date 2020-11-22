@@ -1,5 +1,13 @@
 Revision history for MediaWiki-API
 
+0.50    2020-11-22
+        Rework and simplify the token code using the newer MW 1.24+ api.php?action=query&meta=tokens call.
+        Use a token by default for the login function (by just calling edit with action=login).
+        Updated Wikipedia URLs in examples to https://
+        Remove "Purge" from get_actions as it requires a POST method.
+        Updated TestWiki / ExoticA URLs to https://
+        Thanks to Nataraj for the Wikipedia URL changes and Sebastian for the Purge info.
+
 0.41    2015-11-13
         When using the max_lag configuration, if max_lag_retries was reached - the reported number tries were incorrect.
         Fixed up the api->list function not continuing due to lack of rawcontinue parameter that is needed after MediaWiki 1.26.
