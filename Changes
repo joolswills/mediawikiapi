@@ -1,7 +1,10 @@
 Revision history for MediaWiki-API
 
+0.52    2020-11-25
+        Fix version number in POD.
+
 0.51    2020-11-22
-        Minor packaging changes
+        Minor packaging changes.
 
 0.50    2020-11-22
         Rework and simplify the token code using the newer MW 1.24+ api.php?action=query&meta=tokens call.
