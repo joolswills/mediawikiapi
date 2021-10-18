@@ -16,6 +16,16 @@ WriteMakefile(
         'Encode'         => 0,
         'Carp'           => 0
     },
+    META_MERGE => {
+        'meta-spec' => { version => 2 },
+        resources => {
+            repository => {
+                type => 'git',
+                url  => 'https://github.com/joolswills/mediawikiapigit',
+                web  => 'https://github.com/joolswills/mediawikiapi',
+            }
+        }
+    },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'MediaWiki-API-*' },
 );
