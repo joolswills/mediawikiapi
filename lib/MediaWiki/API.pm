@@ -132,6 +132,7 @@ An example for the on_error configuration could be something like:
 
 Errors are stored in $mw->{error}->{code} with more information in $mw->{error}->{details}. $mw->{error}->{stacktrace} includes
 the details and a stacktrace to locate where any problems originated from (in some code which uses this module for example).
+The MediaWiki::API object itself is provided to the function.
 
 The error codes are as follows
 
@@ -900,7 +901,7 @@ sub _error {
   $self->{error}->{details} = $desc;
   $self->{error}->{stacktrace} = Carp::longmess($desc);
 
-  $self->{config}->{on_error}->() if (defined $self->{config}->{on_error});
+  $self->{config}->{on_error}->($self) if (defined $self->{config}->{on_error});
 
   return undef;
 }
